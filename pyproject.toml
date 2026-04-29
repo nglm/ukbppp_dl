@@ -1,0 +1,20 @@
+[project]
+name = "ukbppp-dl"
+version = "0.1.0"
+description = "Package for easy and efficient download of pQTL data"
+readme = "README.md"
+authors = [
+    {name = "Natacha Galmiche", email = "natacha.galmiche@uib.no"}
+]
+license = "MIT"
+license-files = ["LICENSE.txt"]
+keywords = ["UK Biobank", "UKB-PPP", "pGWAS", "pQTL", "Synapse"]
+
+
+
+
+requires-python = ">=3.14"
+
+
+
+dependencies = []
