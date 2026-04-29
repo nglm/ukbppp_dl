@@ -1,7 +1,7 @@
 [project]
 name = "ukbppp-dl"
 version = "0.1.0"
-description = "Package for easy and efficient download of pQTL data"
+description = "Package for easy and efficient download of significant pQTL data"
 readme = "README.md"
 authors = [
     {name = "Natacha Galmiche", email = "natacha.galmiche@uib.no"}
@@ -17,4 +17,7 @@ requires-python = ">=3.14"
 
 
 
-dependencies = []
+dependencies = [
+    "polars>=1.40.1",
+    "synapse>=2.240.1",
+]
