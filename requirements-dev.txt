@@ -38,7 +38,9 @@ cffi==2.0.0 ; platform_python_implementation != 'PyPy'
 charset-normalizer==3.4.7
     # via requests
 colorama==0.4.6
-    # via stix2-validator
+    # via
+    #   pytest
+    #   stix2-validator
 cpe==1.3.1
     # via stix2-validator
 cryptography==46.0.7
@@ -59,6 +61,8 @@ idna==3.11
     #   requests
     #   synapse
     #   yarl
+iniconfig==2.3.0
+    # via pytest
 isoduration==20.11.0
     # via jsonschema
 jsonpointer==3.1.1
@@ -84,7 +88,11 @@ multidict==6.7.1
 oauthlib==3.3.1
     # via synapse
 packaging==26.2
-    # via synapse
+    # via
+    #   pytest
+    #   synapse
+pluggy==1.6.0
+    # via pytest
 polars==1.40.1
     # via ukbppp-dl
 polars-runtime-32==1.40.1
@@ -100,7 +108,10 @@ pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementatio
 pycryptodome==3.23.0
     # via synapse
 pygments==2.20.0
-    # via synapse
+    # via
+    #   pytest
+    #   synapse
+pytest==9.0.3
 python-bitcoinlib==0.12.2
     # via synapse
 python-dateutil==2.9.0.post0

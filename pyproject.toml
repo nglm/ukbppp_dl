@@ -21,3 +21,8 @@ dependencies = [
     "polars>=1.40.1",
     "synapse>=2.240.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
