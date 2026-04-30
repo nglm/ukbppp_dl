@@ -165,6 +165,7 @@ def keep_significant_qtls_from_chr_gz_file(
 
 
         n_tot_qtls = pl.len(summary_stats)
+        all_qtls = summary_stats.get_column("qtl_id").to_list()
 
         # Filtering the summary statistics to keep only significant QTLs
         summary_stats_significant = summary_stats.filter(
@@ -176,6 +177,7 @@ def keep_significant_qtls_from_chr_gz_file(
         log = {
             "n_tot_qtls": n_tot_qtls,
             "n_kept_qtls": n_kept_qtls,
+            "all_qtls": all_qtls,
         }
 
         if verbose:
@@ -283,6 +285,7 @@ def process_one_tar_file(
             "tot_chr_files": len(list_of_chr_files),
             "skipped_chr_files": [],
             "n_processed_qtls": 0,
+            "processed_qtls": [],
             "log10p_threshold": log10p_threshold,
         }
 
@@ -309,6 +312,7 @@ def process_one_tar_file(
                 log_tar["skipped_chr_files"].append(chr_gz_fname)
             else:
                 log_tar["n_processed_qtls"] += log_chr["n_tot_qtls"]
+                log_tar["processed_qtls"] += log_chr["all_qtls"]
             all_csv_fnames.append(res_csv_fname)
 
     return all_csv_fnames, log_tar
@@ -327,6 +331,7 @@ def process_one_region_folder(
 
     t_start_region = time.time()
 
+    # ----------- List of protein tar files in Region folder -----------
     # Get a list of (synapse_id, tar_name) for all the protein tar files
     tar_entities = list_available_protein_tar_files(
         synapse_folder_id=synapse_folder_id,
@@ -337,13 +342,13 @@ def process_one_region_folder(
     tar_skipped = []
     tar_downloaled_skip = []
     tar_processed = []
+    all_merged_csv_fnames = []
 
     if verbose:
         print(f"Found {tot_tar_files} protein tar files in Synapse folder {synapse_folder_id}.")
 
-    all_merged_csv_fnames = []
 
-    # Process each protein one by one
+    # --------------  Process each protein one by one -----------------
     for synapse_id, tar_name in tar_entities:
 
         if verbose:
@@ -351,6 +356,9 @@ def process_one_region_folder(
 
         # Preparing result filename keeping only significant QTLs
         res_merged_fname = f"{tar_name.split('_')[0].split('/')[-1]}_significant_qtls"
+
+
+        # -------- Skipping if results pre-exist --------------
 
         # Don't run again if result file already exists
         if os.path.isfile(f"{res_merged_fname}.csv"):
@@ -365,6 +373,8 @@ def process_one_region_folder(
 
             t_start = time.time()
 
+            # ------------ Download tar file --------------
+
             tar_fname, skipped = download_protein_tar_file(
                 synapse_id= synapse_id,
                 download_location=download_location,
@@ -375,6 +385,8 @@ def process_one_region_folder(
             if skipped:
                 tar_downloaled_skip.append(tar_name)
 
+            # ------------ Process tar file --------------
+
             all_csv_fnames, log_tar = process_one_tar_file(
                 tar_fname,
                 separator=regenie_sep,
@@ -384,7 +396,7 @@ def process_one_region_folder(
                 verbose=verbose,
             )
 
-            # Now merge all csv files that kept only significant QTLs
+            # ------- Merge csv files that kept only significant QTLs --
             all_significant_qtls = merge_significant_qtls_from_all_chr_files(
                 csv_fnames=all_csv_fnames,
                 output_fname=f"{res_merged_fname}.csv",
@@ -397,7 +409,7 @@ def process_one_region_folder(
             t_end = time.time()
 
 
-            # Create log file for the protein
+            # --------- Create log file for the protein ---------------
             if create_log:
                 log_fname = f"{res_merged_fname}-log.json"
                 log_dict = log_tar + {
@@ -409,10 +421,10 @@ def process_one_region_folder(
                 }
                 create_log(log_fname, log_dict, overwrite=True, verbose=verbose)
 
-
-
             tar_processed.append(tar_fname)
             all_merged_csv_fnames.append(f"{res_merged_fname}.csv")
+
+            # --------------- Warnings and verbose ------------------
 
             if log_tar["skipped_chr_files"]:
                 print(f"[WARNING]: Skipped {len(log_tar['skipped_chr_files'])} chromosome files in tar file {tar_name}!")
@@ -421,7 +433,19 @@ def process_one_region_folder(
             if verbose:
                 print(f"Processed tar file {tar_fname} in {t_end - t_start:.2f} s", flush=True)
 
+
+    # --------------- Merge tar merged CSV files ------------------
+    # Add one column with the protein name
+
+    # TODO!
+
     t_end_region = time.time()
+
+    # ---------------Create log file for the region ------------------
+    if create_log:
+        # TODO!
+        pass
+
     if verbose:
         print(f"Processed region tar files in {t_end_region - t_start_region:.2f} s", flush=True)
 
