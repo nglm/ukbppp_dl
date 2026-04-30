@@ -1,3 +1,5 @@
+import time
+
 import synapseclient
 import tarfile
 import gzip
@@ -9,6 +11,8 @@ import os
 REGION_PQTL_DIR = 'syn51365303'
 
 DOWNLOAD_LOCATION = "./data/"
+
+
 
 # Specific protein tar files for test purpose
 ACOT13_FILE = "syn52362654"
@@ -126,6 +130,8 @@ def process_one_chr_from_protein_tar_file(
 
     else:
 
+        t_start = time.time()
+
         # Temporarily extracting the .gz file to read its content
         chr_file_gz = protein_tar_file.extractfile(chr_gz_fname)
 
@@ -140,8 +146,9 @@ def process_one_chr_from_protein_tar_file(
 
         # Saving the significant summary statistics to a new file
         summary_stats_significant.write_csv(f"{res_csv_fname}")
-
         print(f"Significant QTLs saved to: {res_csv_fname}", flush=True)
+        t_end = time.time()
+        print(f"Processed chromosome file: {chr_gz_fname} in {t_end - t_start:.2f} s", flush=True)
 
     return res_csv_fname
 
@@ -159,13 +166,18 @@ def process_one_tar_file(
 
         # In each .tar file, there is one .gz file per chromosome
         list_of_chr_files = protein_tf.getnames()
+
+
+        # print('Code executed in %.2f s' %(t_end - t_start))
         print(f"One .gz file per chromosome in the tar file: {list_of_chr_files}")
+        t_start = time.time()
 
         # Keep only actual gz files, not the directories
         list_of_chr_files = [f for f in list_of_chr_files if f.endswith('.gz')]
 
         # Focusing on one chromosome at a time
         # For each chr, there one .gz file containing one .regenie file
+        all_csv_fnames = []
         for chr_gz_fname in list_of_chr_files:
 
             res_csv_fname = process_one_chr_from_protein_tar_file(
@@ -177,6 +189,29 @@ def process_one_tar_file(
                 log10p_threshold=log10p_threshold,
             )
 
+            all_csv_fnames.append(res_csv_fname)
+
+        t_end = time.time()
+        print(f"Processed protein file {tar_full_fname} in {t_end - t_start:.2f} s", flush=True)
+
+        return all_csv_fnames
+
+
+def merge_significant_qtls_from_all_chr_files(
+        csv_fnames,
+        output_fname,
+    ):
+
+    # Read all the significant QTLs from the different chromosome files and concatenate them into one dataframe
+    all_significant_qtls = pl.concat(
+        [pl.read_csv(csv_fname) for csv_fname in csv_fnames]
+    )
+
+    # Save the concatenated dataframe to a new file
+    all_significant_qtls.write_csv(output_fname)
+    print(f"All significant QTLs saved to: {output_fname}", flush=True)
+
+    return output_fname
 
 tar_full_fname = download_protein_tar_file(
     ZNF174_FILE,
