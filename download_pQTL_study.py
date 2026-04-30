@@ -27,12 +27,17 @@ LOG10P_THRESHOLD = 7
 # Separator used in the .regenie files
 REGENIE_SEP = " "
 
+# Whether to create a log file
+CREATE_LOG = False
+
 # Synapse login kwargs
 LOGIN_KWARGS = {}
 
 def list_available_protein_tar_files(
         synapse_id=REGION_PQTL_DIR,
-        login_kwargs={}
+        login_kwargs={},
+        create_log=False,
+        verbose=False,
     ):
     """
     List available protein tar files in a Synapse directory.
@@ -62,7 +67,9 @@ def list_available_protein_tar_files(
 def download_protein_tar_file(
         synapse_id,
         download_location=".",
-        login_kwargs={}
+        login_kwargs={},
+        create_log=False,
+        verbose=False,
     ):
     """
     Download a protein tar file from Synapse.
@@ -86,14 +93,19 @@ def download_protein_tar_file(
 
     # Check if the result file already exists in the download location
     expected_file_path = f"{download_location}/{entity.name}"
-    print(f"Expected file path: {expected_file_path}")
+    if verbose:
+        print(f"Expected file path: {expected_file_path}")
     if os.path.isfile(expected_file_path):
-        print(f"File already downloaded: {expected_file_path}. Skipping download.")
+        if verbose:
+            print(f"File already downloaded: {expected_file_path}. Skipping download.")
     else:
         # Download the file to the specified location
-        entity = syn.get(synapse_id, downloadLocation=download_location, downloadFile=True)
+        entity = syn.get(
+            synapse_id, downloadLocation=download_location, downloadFile=True
+        )
         expected_file_path = entity.path
-        print(f"Downloaded file: {expected_file_path}")
+        if verbose:
+            print(f"Downloaded file: {expected_file_path}")
 
     return expected_file_path
 
@@ -103,6 +115,8 @@ def keep_significant_qtls_from_chr_gz_file(
         columns = MANDATORY_COLUMNS,
         new_columns=NEW_COLUMN_NAMES,
         log10p_threshold=LOG10P_THRESHOLD,
+        create_log=False,
+        verbose=False,
     ):
     """Read a .regenie file from a .gz file and keep only significant QTLs.
 
@@ -142,18 +156,23 @@ def process_one_chr_from_protein_tar_file(
         columns = MANDATORY_COLUMNS,
         new_columns=NEW_COLUMN_NAMES,
         log10p_threshold=LOG10P_THRESHOLD,
+        create_log=False,
+        verbose=False,
     ):
-    print(f"Processing chromosome file: {chr_gz_fname}")
+    if verbose:
+        print(f"Processing chromosome file: {chr_gz_fname}")
 
     # Preparing result filename keeping only significant QTLs
     res_csv_fname = f"{chr_gz_fname.split('.')[0].split('/')[-1]}_significant_qtls.csv"
 
     # Don't run again if result file already exists
     if os.path.isfile(f"{res_csv_fname}"):
-        print(
-            f"Result file already created: {res_csv_fname}. Skipping.",
-            flush=True
-        )
+
+        if verbose:
+            print(
+                f"Result file already created: {res_csv_fname}. Skipping.",
+                flush=True
+            )
 
     else:
 
@@ -169,13 +188,16 @@ def process_one_chr_from_protein_tar_file(
             columns=columns,
             new_columns=new_columns,
             log10p_threshold=log10p_threshold,
+            create_log=create_log,
+            verbose=verbose,
         )
 
         # Saving the significant summary statistics to a new file
         summary_stats_significant.write_csv(f"{res_csv_fname}")
-        print(f"Significant QTLs saved to: {res_csv_fname}", flush=True)
         t_end = time.time()
-        print(f"Processed chromosome file: {chr_gz_fname} in {t_end - t_start:.2f} s", flush=True)
+        if verbose:
+            print(f"Significant QTLs saved to: {res_csv_fname}", flush=True)
+            print(f"Processed chromosome file: {chr_gz_fname} in {t_end - t_start:.2f} s", flush=True)
 
     return res_csv_fname
 
@@ -183,6 +205,8 @@ def process_one_chr_from_protein_tar_file(
 def merge_significant_qtls_from_all_chr_files(
         csv_fnames,
         output_fname,
+        create_log=False,
+        verbose=False,
     ):
 
     # Read all the significant QTLs from the different chromosome files and concatenate them into one dataframe
@@ -192,7 +216,8 @@ def merge_significant_qtls_from_all_chr_files(
 
     # Save the concatenated dataframe to a new file
     all_significant_qtls.write_csv(output_fname)
-    print(f"All significant QTLs saved to: {output_fname}", flush=True)
+    if verbose:
+        print(f"All significant QTLs saved to: {output_fname}", flush=True)
 
     return output_fname
 
@@ -202,8 +227,11 @@ def process_one_tar_file(
         columns = MANDATORY_COLUMNS,
         new_columns=NEW_COLUMN_NAMES,
         log10p_threshold=LOG10P_THRESHOLD,
+        create_log=False,
+        verbose=False,
     ):
-    print(f"Processing protein file: {tar_fname}")
+    if verbose:
+        print(f"Processing protein file: {tar_fname}")
 
     # There is one .tar file per protein
     with tarfile.open(tar_fname) as protein_tf:
@@ -211,8 +239,8 @@ def process_one_tar_file(
         # In each .tar file, there is one .gz file per chromosome
         list_of_chr_files = protein_tf.getnames()
 
-        # print('Code executed in %.2f s' %(t_end - t_start))
-        print(f"One .gz file per chromosome in the tar file: {list_of_chr_files}")
+        if verbose:
+            print(f"One .gz file per chromosome in the tar file: {list_of_chr_files}")
         t_start = time.time()
 
         # Keep only actual gz files, not the directories
@@ -230,12 +258,15 @@ def process_one_tar_file(
                 columns=columns,
                 new_columns=new_columns,
                 log10p_threshold=log10p_threshold,
+                create_log=create_log,
+                verbose=verbose,
             )
 
             all_csv_fnames.append(res_csv_fname)
 
         t_end = time.time()
-        print(f"Processed protein file {tar_fname} in {t_end - t_start:.2f} s", flush=True)
+        if verbose:
+            print(f"Processed protein file {tar_fname} in {t_end - t_start:.2f} s", flush=True)
 
     return all_csv_fnames
 
@@ -247,12 +278,16 @@ def process_one_region_folder(
         regenie_columns = MANDATORY_COLUMNS,
         csv_columns = NEW_COLUMN_NAMES,
         log10p_threshold = LOG10P_THRESHOLD,
+        create_log = False,
+        verbose=False,
 ):
 
     # Get a list of (synapse_id, tar_name) for all the protein tar files
     tar_entities = list_available_protein_tar_files(
         synapse_folder_id=synapse_folder_id,
         login_kwargs=login_kwargs,
+        create_log=create_log,
+        verbose=verbose,
     )
 
     all_merged_csv_fnames = []
@@ -260,24 +295,28 @@ def process_one_region_folder(
     # Process each protein one by one
     for synapse_id, tar_name in tar_entities:
 
-        print(f"Processing Synapse ID: {synapse_id}")
+        if verbose:
+            print(f"Processing Synapse ID: {synapse_id}")
 
         # Preparing result filename keeping only significant QTLs
         res_merged_csv_fname = f"{tar_name.split('_')[0][-1]}_significant_qtls.csv"
 
         # Don't run again if result file already exists
         if os.path.isfile(f"{res_merged_csv_fname}"):
-            print(
-                f"Result file already created: {res_merged_csv_fname}. Skipping.",
-                flush=True
-            )
+            if verbose:
+                print(
+                    f"Result file already created: {res_merged_csv_fname}. Skipping.",
+                    flush=True
+                )
 
         else:
 
             tar_fname = download_protein_tar_file(
                 synapse_id= synapse_id,
                 download_location=download_location,
-                login_kwargs=login_kwargs
+                login_kwargs=login_kwargs,
+                create_log=create_log,
+                verbose=verbose,
             )
 
 
@@ -287,12 +326,16 @@ def process_one_region_folder(
                 columns = regenie_columns,
                 new_columns=csv_columns,
                 log10p_threshold=log10p_threshold,
+                create_log=create_log,
+                verbose=verbose,
             )
 
             # Now merge all csv files that kept only significant QTLs
             res_merged_csv_fname = merge_significant_qtls_from_all_chr_files(
                 csv_fnames=all_csv_fnames,
                 output_fname=res_merged_csv_fname,
+                create_log=create_log,
+                verbose=verbose,
             )
 
             all_merged_csv_fnames.append(res_merged_csv_fname)
@@ -300,3 +343,15 @@ def process_one_region_folder(
     return all_merged_csv_fnames
 
 
+# TODO: One function that detects whether the ID is a chr, a tar or a folder and redirected as appropriate
+
+# TODO: Write kept QTLS and those that are not kept
+# Merge also the kept QTLs list files (but don't make it mandatory)
+
+# Add info about n_skipped, n_processed regarding the files
+# Have a create_log parameter, set to False by default, that create a log file with the info about n_skipped, n_processed, fnames, the time taken for each step, date of execution. The log file will be a CSV file.
+
+# TODO: tests
+
+# TODO: process map files as well, in another file
+# -
