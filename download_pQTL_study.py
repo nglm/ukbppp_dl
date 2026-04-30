@@ -1,6 +1,7 @@
 import time
 
 import synapseclient
+from synapseclient.models import Folder
 import tarfile
 import gzip
 import polars as pl
@@ -11,8 +12,6 @@ import os
 REGION_PQTL_DIR = 'syn51365303'
 
 DOWNLOAD_LOCATION = "./data/"
-
-
 
 # Specific protein tar files for test purpose
 ACOT13_FILE = "syn52362654"
@@ -30,6 +29,35 @@ REGENIE_SEP = " "
 
 # Synapse login kwargs
 LOGIN_KWARGS = {}
+
+def list_available_protein_tar_files(
+        synapse_id=REGION_PQTL_DIR,
+        login_kwargs={}
+    ):
+    """
+    List available protein tar files in a Synapse directory.
+
+    Parameters:
+    synapse_id (str): The Synapse ID of the directory to list files from.
+
+    Returns:
+    list: A list of Synapse IDs and names of the available protein tar files.
+    """
+    syn = synapseclient.Synapse()
+    # Use your synapse account here, as configured in your .synapseConfig file.
+    syn.login(**login_kwargs)
+
+    # This will only get immediate children, not subfolders' contents
+    folder = Folder(id=synapse_id)
+    folder = folder.sync_from_synapse(download_file=False, recursive=False)
+
+    # Filter for tar files and return their Synapse IDs and names
+    tar_files = [
+        (file.id, file.name)
+        for file in folder.files if file.name.endswith('.tar')
+    ]
+
+    return tar_files
 
 def download_protein_tar_file(
         synapse_id,
@@ -126,7 +154,6 @@ def process_one_chr_from_protein_tar_file(
             f"Result file already created: {res_csv_fname}. Skipping.",
             flush=True
         )
-        pass
 
     else:
 
@@ -153,20 +180,36 @@ def process_one_chr_from_protein_tar_file(
     return res_csv_fname
 
 
+def merge_significant_qtls_from_all_chr_files(
+        csv_fnames,
+        output_fname,
+    ):
+
+    # Read all the significant QTLs from the different chromosome files and concatenate them into one dataframe
+    all_significant_qtls = pl.concat(
+        [pl.read_csv(csv_fname) for csv_fname in csv_fnames]
+    )
+
+    # Save the concatenated dataframe to a new file
+    all_significant_qtls.write_csv(output_fname)
+    print(f"All significant QTLs saved to: {output_fname}", flush=True)
+
+    return output_fname
+
 def process_one_tar_file(
-        tar_full_fname,
+        tar_fname,
         separator=REGENIE_SEP,
         columns = MANDATORY_COLUMNS,
         new_columns=NEW_COLUMN_NAMES,
         log10p_threshold=LOG10P_THRESHOLD,
     ):
+    print(f"Processing protein file: {tar_fname}")
 
     # There is one .tar file per protein
-    with tarfile.open(tar_full_fname) as protein_tf:
+    with tarfile.open(tar_fname) as protein_tf:
 
         # In each .tar file, there is one .gz file per chromosome
         list_of_chr_files = protein_tf.getnames()
-
 
         # print('Code executed in %.2f s' %(t_end - t_start))
         print(f"One .gz file per chromosome in the tar file: {list_of_chr_files}")
@@ -192,34 +235,68 @@ def process_one_tar_file(
             all_csv_fnames.append(res_csv_fname)
 
         t_end = time.time()
-        print(f"Processed protein file {tar_full_fname} in {t_end - t_start:.2f} s", flush=True)
+        print(f"Processed protein file {tar_fname} in {t_end - t_start:.2f} s", flush=True)
 
-        return all_csv_fnames
+    return all_csv_fnames
 
+def process_one_region_folder(
+        synapse_folder_id=REGION_PQTL_DIR,
+        download_location=DOWNLOAD_LOCATION,
+        login_kwargs=LOGIN_KWARGS,
+        regenie_sep = REGENIE_SEP,
+        regenie_columns = MANDATORY_COLUMNS,
+        csv_columns = NEW_COLUMN_NAMES,
+        log10p_threshold = LOG10P_THRESHOLD,
+):
 
-def merge_significant_qtls_from_all_chr_files(
-        csv_fnames,
-        output_fname,
-    ):
-
-    # Read all the significant QTLs from the different chromosome files and concatenate them into one dataframe
-    all_significant_qtls = pl.concat(
-        [pl.read_csv(csv_fname) for csv_fname in csv_fnames]
+    # Get a list of (synapse_id, tar_name) for all the protein tar files
+    tar_entities = list_available_protein_tar_files(
+        synapse_folder_id=synapse_folder_id,
+        login_kwargs=login_kwargs,
     )
 
-    # Save the concatenated dataframe to a new file
-    all_significant_qtls.write_csv(output_fname)
-    print(f"All significant QTLs saved to: {output_fname}", flush=True)
+    all_merged_csv_fnames = []
 
-    return output_fname
+    # Process each protein one by one
+    for synapse_id, tar_name in tar_entities:
 
-tar_full_fname = download_protein_tar_file(
-    ZNF174_FILE,
-    download_location=DOWNLOAD_LOCATION, login_kwargs=LOGIN_KWARGS
-)
+        print(f"Processing Synapse ID: {synapse_id}")
+
+        # Preparing result filename keeping only significant QTLs
+        res_merged_csv_fname = f"{tar_name.split('_')[0][-1]}_significant_qtls.csv"
+
+        # Don't run again if result file already exists
+        if os.path.isfile(f"{res_merged_csv_fname}"):
+            print(
+                f"Result file already created: {res_merged_csv_fname}. Skipping.",
+                flush=True
+            )
+
+        else:
+
+            tar_fname = download_protein_tar_file(
+                synapse_id= synapse_id,
+                download_location=download_location,
+                login_kwargs=login_kwargs
+            )
 
 
-# TODO: function to list available tar files
+            all_csv_fnames = process_one_tar_file(
+                tar_fname,
+                separator=regenie_sep,
+                columns = regenie_columns,
+                new_columns=csv_columns,
+                log10p_threshold=log10p_threshold,
+            )
 
-# TODO: Do something when the full tar file is processed so that we know when to skip a tar file.
+            # Now merge all csv files that kept only significant QTLs
+            res_merged_csv_fname = merge_significant_qtls_from_all_chr_files(
+                csv_fnames=all_csv_fnames,
+                output_fname=res_merged_csv_fname,
+            )
+
+            all_merged_csv_fnames.append(res_merged_csv_fname)
+
+    return all_merged_csv_fnames
+
 
