@@ -181,6 +181,20 @@ def test_process_one_tar_file():
     elif log_tar["skipped_chr_files"] == 0:
         assert log_tar["n_processed_qtls"] == N_EXPECTED_QTLS
 
-def test_keep_significant_qtls_from_chr_gz_file():
-    pass
+def test_merge_significant_qtls_from_all_chr_files():
+    # This test relies on the previous one, which processes the tar file and creates the csv files
+    # If the previous test fails, this one will also fail
+
+    all_csv_fnames, log_tar = process_one_tar_file(
+            ACOT13_PATH,
+            res_location=RES_LOCATION,
+            separator=REGENIE_SEP,
+            columns = MANDATORY_COLUMNS,
+            new_columns=NEW_COLUMN_NAMES,
+            log10p_threshold=LOG10P_THRESHOLD,
+            create_log=0,
+            verbose=True,
+    )
+
+    
 

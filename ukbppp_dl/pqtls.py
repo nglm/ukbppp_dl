@@ -16,6 +16,7 @@ import polars as pl
 import os
 import json
 import pathlib
+from pathlib import Path
 
 # Synapse directory containing pQTL summary statistics (here for Europe)
 REGION_PQTL_DIR = 'syn51365303'
@@ -192,7 +193,7 @@ def keep_significant_qtls_from_chr_gz_file(
 
     if create_log:
         # If log_fname not in log_kwargs, use a default one
-        log_fname = f"{chr_file_gz.name.split('.')[-2]}-log.json"
+        log_fname = f"{Path(chr_file_gz.name).stem}-log.json"
         log_fname = log_kwargs.pop("log_fname", log_fname)
         save_log(log_fname, log, **log_kwargs)
         if verbose:
@@ -221,7 +222,7 @@ def process_one_chr_from_protein_tar_file(
     # Find actual full name in case chr_gz_fname doesn't contain the full path in the tar file
     list_of_chr_files = protein_tar_file.getnames()
     chr_gz_fname_full = [f for f in list_of_chr_files if chr_gz_fname in f][0]
-    chr_gz_fname_no_path_no_gz = f"{chr_gz_fname_full.split('.')[-2].split('/')[-1]}"
+    chr_gz_fname_no_path_no_gz = f"{Path(chr_gz_fname_full).stem}"
 
     # Preparing result filename keeping only significant QTLs
     res_csv_fname = f"{res_location}/{chr_gz_fname_no_path_no_gz}_significant_qtls.csv"
@@ -285,24 +286,42 @@ def process_one_chr_from_protein_tar_file(
 def merge_significant_qtls_from_all_chr_files(
         csv_fnames,
         output_fname,
+        create_log = False,
+        log_kwargs = {},
         verbose=False,
     ):
 
     # Read all the significant QTLs from the different chromosome files and concatenate them into one dataframe
-    all_significant_qtls = pl.concat(
-        [pl.read_csv(csv_fname) for csv_fname in csv_fnames]
-    )
+    all_df = [pl.read_csv(csv_fname) for csv_fname in csv_fnames]
+    n_kept_per_file = [len(df) for df in all_df]
+    all_significant_qtls = pl.concat(all_df)
 
     n_kept_qtls = pl.len(all_significant_qtls)
 
     # Save the concatenated dataframe to a new file
     all_significant_qtls.write_csv(output_fname)
+
+    if create_log:
+        log = {
+            "res_merged_csv_fname" : output_fname,
+            "n_chr_files_merged": len(csv_fnames),
+            "n_kept_qtls": n_kept_qtls,
+            "n_kept_qtls_per_chr_file": dict(zip(csv_fnames, n_kept_per_file)),
+            "min_log10p": float(all_significant_qtls.min("log10p")),
+        }
+        # If log_fname not in log_kwargs, use a default one
+        log_fname = f"{Path(output_fname).stem}-log.json"
+        log_fname = log_kwargs.pop("log_fname", log_fname)
+        save_log(log_fname, log, **log_kwargs)
+        if verbose:
+            print(f"Saved log file to {log_fname}.")
+
     if verbose:
         print(f"Merged significant QTLs from {len(csv_fnames)} files")
-        print(f"All significant QTLs saved to: {output_fname}", flush=True)
-        print(f"Total significant QTLs: {n_kept_qtls}", flush=True)
+        print(f"All significant QTLs saved to:   {output_fname}", flush=True)
+        print(f"Total significant QTLs:          {n_kept_qtls}", flush=True)
 
-    return all_significant_qtls
+    return all_significant_qtls, log
 
 def process_one_tar_file(
         tar_fname,
@@ -326,18 +345,20 @@ def process_one_tar_file(
 
         # Keep only actual gz files, not the directories
         list_of_chr_files = [f for f in list_of_chr_files if f.endswith('.gz')]
+        protein_name = f"{Path(tar_fname).stem.split('_')[0]}"
 
         log_tar = {
+            "tar_fname": tar_fname,
+            "protein_name": protein_name,
             "tot_chr_files": len(list_of_chr_files),
             "skipped_chr_files": [],
+            "all_csv_fnames": [],
             "n_processed_qtls": 0,
             "log10p_threshold": log10p_threshold,
         }
 
         # Focusing on one chromosome at a time
         # For each chr, there one .gz file containing one .regenie file
-        all_csv_fnames = []
-
         for chr_gz_fname in list_of_chr_files:
 
             res_csv_fname, log_chr = process_one_chr_from_protein_tar_file(
@@ -357,18 +378,17 @@ def process_one_tar_file(
                 log_tar["skipped_chr_files"].append(chr_gz_fname)
             else:
                 log_tar["n_processed_qtls"] += log_chr["n_tot_qtls"]
-            all_csv_fnames.append(res_csv_fname)
+            log_tar["all_csv_fnames"].append(res_csv_fname)
 
     if create_log:
         # If log_fname not in log_kwargs, use a default one
-        tar_fname_no_path_no_tar = f"{tar_fname.split('.')[-2].split('/')[-1]}"
-        log_fname = f"{res_location}/{tar_fname_no_path_no_tar}-log.json"
+        log_fname = f"{res_location}/{Path(tar_fname).stem}-log.json"
         log_fname = log_kwargs.pop("log_fname", log_fname)
         save_log(log_fname, log_tar, **log_kwargs)
         if verbose:
             print(f"Saved log file to {log_fname}.")
 
-    return all_csv_fnames, log_tar
+    return log_tar["all_csv_fnames"], log_tar
 
 def process_one_region_folder(
         synapse_folder_id=REGION_PQTL_DIR,
@@ -408,7 +428,8 @@ def process_one_region_folder(
             print(f"Processing Synapse ID: {synapse_id}")
 
         # Preparing result filename keeping only significant QTLs
-        res_merged_fname = f"{tar_name.split('_')[0].split('/')[-1]}_significant_qtls"
+        protein_name = f"{Path(tar_name).stem.split('_')[0]}"
+        res_merged_fname = f"{protein_name}-significant_qtls"
 
 
         # -------- Skipping if results pre-exist --------------
@@ -450,14 +471,13 @@ def process_one_region_folder(
             )
 
             # ------- Merge csv files that kept only significant QTLs --
-            all_significant_qtls = merge_significant_qtls_from_all_chr_files(
+            all_significant_qtls, log_merged = merge_significant_qtls_from_all_chr_files(
                 csv_fnames=all_csv_fnames,
                 output_fname=f"{res_merged_fname}.csv",
                 verbose=verbose,
             )
 
-            n_kept_qtls = pl.len(all_significant_qtls)
-            log_tar["n_kept_qtls"] = n_kept_qtls
+            log_tar = log_tar + log_merged
 
             t_end = time.time()
 
@@ -465,14 +485,11 @@ def process_one_region_folder(
             # --------- Create log file for the protein ---------------
             if create_log:
                 log_fname = f"{res_merged_fname}-log.json"
-                log_dict = log_tar + {
+                log_tar = log_tar + {
                     "synapse_id": synapse_id,
-                    "tar_name": tar_name,
-                    "all_csv_fnames": all_csv_fnames,
-                    "res_merged_csv_fname": f"{res_merged_fname}.csv",
                     "time_taken" : t_end - t_start,
                 }
-                save_log(log_fname, log_dict, overwrite=True, verbose=verbose)
+                save_log(log_fname, log_tar, overwrite=True, verbose=verbose)
 
             tar_processed.append(tar_fname)
             all_merged_csv_fnames.append(f"{res_merged_fname}.csv")
@@ -497,6 +514,8 @@ def process_one_region_folder(
     # ---------------Create log file for the region ------------------
     if create_log:
         # TODO!
+        # Add n_tar_skipped, n_tar_downloaled_skip, time_taken
+        # n_chr_skipped
         pass
 
     if verbose:
