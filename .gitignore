@@ -13,5 +13,6 @@ tmp/*
 notes/*
 data/*
 results/*
+results_tests/*
 *.pdf
 !paper.pdf
