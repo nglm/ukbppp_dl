@@ -20,7 +20,8 @@ import pathlib
 # Synapse directory containing pQTL summary statistics (here for Europe)
 REGION_PQTL_DIR = 'syn51365303'
 
-DOWNLOAD_LOCATION = "./data/"
+DOWNLOAD_LOCATION = "./data"
+RES_LOCATION = "./results"
 
 # Specific protein tar files for test purpose
 ACOT13_FILE = "syn52362654"
@@ -50,10 +51,11 @@ CONSISTENCY_MESSAGE = """
 """
 
 
-def create_log(log_fname, log_dict, overwrite=True, verbose=False):
+def save_log(log_fname, log_dict, overwrite=True, verbose=False):
 
-    if os.path.isfile(log_fname) and not overwrite and verbose:
-        print(f"Log file {log_fname} already exists. Not overwriting.")
+    if os.path.isfile(log_fname) and not overwrite:
+        if verbose:
+            print(f"Log file {log_fname} already exists. Not overwriting.")
         return False
 
     else:
@@ -87,14 +89,19 @@ def list_available_protein_tar_files(
     # Use your synapse account here, as configured in your .synapseConfig file.
     syn.login(**login_kwargs)
 
-    # This will only get immediate children, not subfolders' contents
     folder = Folder(id=synapse_id)
-    folder = folder.sync_from_synapse(download_file=False, recursive=False)
+    # Iterator of (dirpath, dirs, nondirs)
+    folder_structure = folder.walk(recursive=False)
+
+    # There is actually only one level of files in the folder,
+    # So we directly get the first iteration of the walk
+    # nondirs is a list of EntityHeader objects, which have attributes such as id and name
+    dirpath, dirs, nondirs = next(folder_structure)
 
     # Filter for tar files and return their Synapse IDs and names
     tar_files = [
         (file.id, file.name)
-        for file in folder.files if file.name.endswith('.tar')
+        for file in nondirs if file.name.endswith('.tar')
     ]
 
     return tar_files
@@ -149,6 +156,8 @@ def keep_significant_qtls_from_chr_gz_file(
         columns = MANDATORY_COLUMNS,
         new_columns=NEW_COLUMN_NAMES,
         log10p_threshold=LOG10P_THRESHOLD,
+        create_log = False,
+        log_kwargs = {},
         verbose=False,
     ):
 
@@ -164,7 +173,7 @@ def keep_significant_qtls_from_chr_gz_file(
             )
 
 
-        n_tot_qtls = pl.len(summary_stats)
+        n_tot_qtls = len(summary_stats)
         all_qtls = summary_stats.get_column("qtl_id").to_list()
 
         # Filtering the summary statistics to keep only significant QTLs
@@ -172,32 +181,52 @@ def keep_significant_qtls_from_chr_gz_file(
             pl.col("log10p") >= log10p_threshold
         )
 
-        n_kept_qtls = pl.len(summary_stats_significant)
+        n_kept_qtls = len(summary_stats_significant)
 
         log = {
+            "log10p_threshold": log10p_threshold,
             "n_tot_qtls": n_tot_qtls,
             "n_kept_qtls": n_kept_qtls,
-            "all_qtls": all_qtls,
+            "source_chr_file": f_regenie.name,
         }
 
+    if create_log:
+        # If log_fname not in log_kwargs, use a default one
+        log_fname = f"{chr_file_gz.name.split('.')[-2]}-log.json"
+        log_fname = log_kwargs.pop("log_fname", log_fname)
+        save_log(log_fname, log, **log_kwargs)
         if verbose:
-            print(f"Total QTLs in chr file: {n_tot_qtls}")
-            print(f"Kept QTLs (>= {log10p_threshold}):       {n_kept_qtls}")
+            print(f"Saved log file to {log_fname}.")
+
+    if verbose:
+        print(f"Total QTLs in chr file:    {n_tot_qtls}")
+        print(f"Kept QTLs (log10p>= {log10p_threshold}):    {n_kept_qtls}")
+
 
     return summary_stats_significant, log
 
 def process_one_chr_from_protein_tar_file(
         protein_tar_file,
         chr_gz_fname,
+        res_location=RES_LOCATION,
         separator=REGENIE_SEP,
         columns = MANDATORY_COLUMNS,
         new_columns=NEW_COLUMN_NAMES,
         log10p_threshold=LOG10P_THRESHOLD,
+        create_log = False,
+        log_kwargs = {},
         verbose=False,
     ):
 
+    # Find actual full name in case chr_gz_fname doesn't contain the full path in the tar file
+    list_of_chr_files = protein_tar_file.getnames()
+    chr_gz_fname_full = [f for f in list_of_chr_files if chr_gz_fname in f][0]
+    chr_gz_fname_no_path_no_gz = f"{chr_gz_fname_full.split('.')[-2].split('/')[-1]}"
+
     # Preparing result filename keeping only significant QTLs
-    res_csv_fname = f"{chr_gz_fname.split('.')[0].split('/')[-1]}_significant_qtls.csv"
+    res_csv_fname = f"{res_location}/{chr_gz_fname_no_path_no_gz}_significant_qtls.csv"
+    p = pathlib.Path(res_csv_fname)
+    p.parent.mkdir(parents=True, exist_ok=True)
 
     # Don't run again if result file already exists
     if os.path.isfile(f"{res_csv_fname}"):
@@ -218,7 +247,7 @@ def process_one_chr_from_protein_tar_file(
         t_start = time.time()
 
         # Temporarily extracting the .gz file to read its content
-        chr_file_gz = protein_tar_file.extractfile(chr_gz_fname)
+        chr_file_gz = protein_tar_file.extractfile(chr_gz_fname_full)
 
         # Read .regenie_file and keep only significant QTLs
         summary_stats_significant, log_chr = keep_significant_qtls_from_chr_gz_file(
@@ -227,7 +256,9 @@ def process_one_chr_from_protein_tar_file(
             columns=columns,
             new_columns=new_columns,
             log10p_threshold=log10p_threshold,
-            verbose=verbose,
+            create_log=int(create_log) - 1,
+            log_kwargs=log_kwargs,
+            verbose=int(verbose) - 1,
         )
 
         log_chr["skipped"] = False
@@ -235,9 +266,18 @@ def process_one_chr_from_protein_tar_file(
         # Saving the significant summary statistics to a new file
         summary_stats_significant.write_csv(f"{res_csv_fname}")
         t_end = time.time()
+
+        if create_log:
+            # If log_fname not in log_kwargs, use a default one
+            log_fname = f"{res_location}/{chr_gz_fname_no_path_no_gz}-log.json"
+            log_fname = log_kwargs.pop("log_fname", log_fname)
+            save_log(log_fname, log_chr, **log_kwargs)
+            if verbose:
+                print(f"Saved log file to {log_fname}.")
+
         if verbose:
             print(f"Significant QTLs saved to: {res_csv_fname}", flush=True)
-            print(f"Processed chromosome file {chr_gz_fname} in {t_end - t_start:.2f} s", flush=True)
+            print(f"Processed chromosome file {chr_gz_fname_full} in {t_end - t_start:.2f} s", flush=True)
 
     return res_csv_fname, log_chr
 
@@ -266,10 +306,13 @@ def merge_significant_qtls_from_all_chr_files(
 
 def process_one_tar_file(
         tar_fname,
+        res_location=RES_LOCATION,
         separator=REGENIE_SEP,
         columns = MANDATORY_COLUMNS,
         new_columns=NEW_COLUMN_NAMES,
         log10p_threshold=LOG10P_THRESHOLD,
+        create_log = False,
+        log_kwargs = {},
         verbose=False,
     ):
     if verbose:
@@ -281,16 +324,15 @@ def process_one_tar_file(
         # In each .tar file, there is one .gz file per chromosome
         list_of_chr_files = protein_tf.getnames()
 
+        # Keep only actual gz files, not the directories
+        list_of_chr_files = [f for f in list_of_chr_files if f.endswith('.gz')]
+
         log_tar = {
             "tot_chr_files": len(list_of_chr_files),
             "skipped_chr_files": [],
             "n_processed_qtls": 0,
-            "processed_qtls": [],
             "log10p_threshold": log10p_threshold,
         }
-
-        # Keep only actual gz files, not the directories
-        list_of_chr_files = [f for f in list_of_chr_files if f.endswith('.gz')]
 
         # Focusing on one chromosome at a time
         # For each chr, there one .gz file containing one .regenie file
@@ -301,19 +343,30 @@ def process_one_tar_file(
             res_csv_fname, log_chr = process_one_chr_from_protein_tar_file(
                 protein_tar_file=protein_tf,
                 chr_gz_fname=chr_gz_fname,
+                res_location=res_location,
                 separator=separator,
                 columns=columns,
                 new_columns=new_columns,
                 log10p_threshold=log10p_threshold,
-                verbose=verbose,
+                create_log=int(create_log) - 1,
+                log_kwargs=log_kwargs,
+                verbose=int(verbose) - 1,
             )
 
             if log_chr["skipped"]:
                 log_tar["skipped_chr_files"].append(chr_gz_fname)
             else:
                 log_tar["n_processed_qtls"] += log_chr["n_tot_qtls"]
-                log_tar["processed_qtls"] += log_chr["all_qtls"]
             all_csv_fnames.append(res_csv_fname)
+
+    if create_log:
+        # If log_fname not in log_kwargs, use a default one
+        tar_fname_no_path_no_tar = f"{tar_fname.split('.')[-2].split('/')[-1]}"
+        log_fname = f"{res_location}/{tar_fname_no_path_no_tar}-log.json"
+        log_fname = log_kwargs.pop("log_fname", log_fname)
+        save_log(log_fname, log_tar, **log_kwargs)
+        if verbose:
+            print(f"Saved log file to {log_fname}.")
 
     return all_csv_fnames, log_tar
 
@@ -419,7 +472,7 @@ def process_one_region_folder(
                     "res_merged_csv_fname": f"{res_merged_fname}.csv",
                     "time_taken" : t_end - t_start,
                 }
-                create_log(log_fname, log_dict, overwrite=True, verbose=verbose)
+                save_log(log_fname, log_dict, overwrite=True, verbose=verbose)
 
             tar_processed.append(tar_fname)
             all_merged_csv_fnames.append(f"{res_merged_fname}.csv")
@@ -459,15 +512,11 @@ def process_one_region_folder(
     return all_merged_csv_fnames
 
 
-# TODO: One function that detects whether the ID is a chr, a tar or a folder and redirected as appropriate
 
-# TODO: Write kept QTLS and those that are not kept
-# Merge also the kept QTLs list files (but don't make it mandatory)
+# TODO: One function that detects whether the ID is a chr, a tar or a folder and redirected as appropriate
 
 # Add info about n_skipped, n_processed regarding the files
 # Have a create_log parameter, set to False by default, that create a log file with the info about n_skipped, n_processed, fnames, the time taken for each step, date of execution. The log file will be a CSV file.
-
-# TODO: tests
 
 # TODO: process map files as well, in another file
 # -
