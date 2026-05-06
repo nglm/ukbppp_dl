@@ -12,7 +12,8 @@ import pathlib
 from ..pqtls import (
        list_available_protein_tar_files, download_protein_tar_file,
        process_one_chr_from_protein_tar_file,
-       process_one_tar_file,
+       process_one_tar_file, merge_significant_qtls_from_all_chr_files,
+       process_one_region_folder,
        save_log,
     )
 
@@ -173,7 +174,7 @@ def test_process_one_tar_file():
     assert all(key in log_tar for key in keys)
     assert log_tar["tot_chr_files"] == N_EXPECTED_CHR_FILES
     assert len(log_tar["skipped_chr_files"]) >= 0
-    assert len(log_tar["skipped_chr_files"]) < N_EXPECTED_CHR_FILES
+    assert len(log_tar["skipped_chr_files"]) <= N_EXPECTED_CHR_FILES
 
 
     if log_tar["skipped_chr_files"] == N_EXPECTED_CHR_FILES:
@@ -196,5 +197,37 @@ def test_merge_significant_qtls_from_all_chr_files():
             verbose=True,
     )
 
-    
+    out_fname = f"{RES_LOCATION}/ACOT13-test_merging_significant_qtls.csv"
+
+    all_significant_qtls, log_merged = merge_significant_qtls_from_all_chr_files(
+        all_csv_fnames,
+        output_fname=out_fname,
+        create_log=1,
+        verbose=True,
+    )
+
+    assert isinstance(all_significant_qtls, pl.DataFrame)
+    assert isinstance(log_merged, dict)
+
+
+def test_process_one_region_folder():
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+    all_significant_qtls, log_reg = process_one_region_folder(
+        REGION_PQTL_DIR,
+        download_location=DOWNLOAD_LOCATION,
+        res_location=RES_LOCATION,
+        login_kwargs=LOGIN_KWARGS,
+        regenie_sep=REGENIE_SEP,
+        regenie_columns = MANDATORY_COLUMNS,
+        csv_columns=NEW_COLUMN_NAMES,
+        log10p_threshold=LOG10P_THRESHOLD,
+        create_log=1,
+        verbose=3,
+    )
+
+    assert isinstance(all_significant_qtls, pl.DataFrame)
+    assert isinstance(log_reg, dict)
+
 
