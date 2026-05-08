@@ -6,7 +6,7 @@ General design choices
 - The log files stores information about the results that won't be accessible outside the scope of a given function.
 - The log file stores information about parameters used only when the parameteres are not directly used when calling the function. In other words, if a user calls a given function, the parameters used in the call won't be saved i n the log file.
 """
-
+import sys
 import time
 import synapseclient
 from synapseclient.models import Folder
@@ -48,7 +48,7 @@ LOGIN_KWARGS = {}
 LOG_KWARGS = {
     "overwrite": False,
     "add_date": True,
-    "new_name": True,
+    "new_name": False,
     "verbose": True,
 }
 
@@ -333,15 +333,27 @@ def merge_significant_qtls_from_all_chr_files(
         output_fname = None,
         create_log = CREATE_LOG,
         log_kwargs = LOG_KWARGS,
+        delete_chr_csv = True,
         verbose=False,
     ):
+    if not csv_fnames:
+        return None, None
 
     # Read all the significant QTLs from the different chromosome files and concatenate them into one dataframe
     all_df = [pl.read_csv(csv_fname) for csv_fname in csv_fnames]
     n_kept_per_file = [len(df) for df in all_df]
-    all_significant_qtls = pl.concat([df for df in all_df if len(df) > 0])
+    non_empty_df = [df for df in all_df if len(df) > 0]
+    if len(non_empty_df) > 0:
+        all_significant_qtls = pl.concat(non_empty_df)
+    else:
+        # empty dataframe with the same columns as the input dataframes
+        all_significant_qtls = all_df[0].clear()
 
     n_kept_qtls = len(all_significant_qtls)
+    if n_kept_qtls > 0:
+        min_log10p = float(all_significant_qtls.get_column("log10p").min())
+    else:
+        min_log10p = None
 
     log = {
         "log_filename" : None,
@@ -349,7 +361,7 @@ def merge_significant_qtls_from_all_chr_files(
         "n_chr_files_merged": len(csv_fnames),
         "n_kept_qtls": n_kept_qtls,
         "n_kept_qtls_per_chr_file": dict(zip(csv_fnames, n_kept_per_file)),
-        "min_log10p": float(all_significant_qtls.get_column("log10p").min()),
+        "min_log10p": min_log10p,
     }
 
     if output_fname is not None:
@@ -363,6 +375,11 @@ def merge_significant_qtls_from_all_chr_files(
         log_fname = f"{output_fname.split('.csv')[0]}-log.json"
         log_fname = log_kwargs.pop("log_fname", log_fname)
         save_log(log_fname, log, **log_kwargs)
+
+    if delete_chr_csv:
+        for csv_fname in csv_fnames:
+            if os.path.isfile(csv_fname):
+                os.remove(csv_fname)
 
     if int(verbose) > 0:
         print(f"Merged significant QTLs from {len(csv_fnames)} files")
@@ -407,6 +424,8 @@ def process_one_tar_file(
             "all_csv_fnames": [],
             "n_processed_qtls": 0,
             "log10p_threshold": log10p_threshold,
+            "regenie_columns": columns,
+            "csv_columns": new_columns,
         }
 
         # Focusing on one chromosome at a time
@@ -446,11 +465,22 @@ def process_one_tar_file(
     return log_tar["all_csv_fnames"], log_tar
 
 def find_partial_region_logs(
+    example_log_dict = None,
     synapse_folder_id=REGION_PQTL_DIR,
     res_location=RES_LOCATION,
+    regenie_columns = MANDATORY_COLUMNS,
     csv_columns = NEW_COLUMN_NAMES,
     log10p_threshold = LOG10P_THRESHOLD,
 ):
+
+    if example_log_dict is not None:
+        # If an example log file is provided, we use it to get the parameters to look for in the pre-existing logs
+
+        synapse_folder_id = example_log_dict["synapse_folder_id"]
+        regenie_columns = example_log_dict["regenie_columns"]
+        csv_columns = example_log_dict["csv_columns"]
+        log10p_threshold = example_log_dict["log10p_threshold"]
+
     # Find all filenames in the result location
     files = os.listdir(res_location)
 
@@ -461,7 +491,132 @@ def find_partial_region_logs(
         and f.startswith(f"PART-{synapse_folder_id}-significant_qtl")
     ]
 
-    #
+    compatible_log_files = {}
+
+    for log_file in log_files:
+        with open(f"{res_location}/{log_file}", 'r') as f_log:
+            log_dict = json.load(f_log)
+
+        # check that csv_columns are in the log file
+        if not all(col_name in log_dict for col_name in csv_columns):
+            continue
+
+        # Check that values are consistent
+        if log_dict["log10p_threshold"] != log10p_threshold:
+            continue
+
+        if log_dict["regenie_columns"] != regenie_columns:
+            continue
+
+        if log_dict["csv_columns"] != csv_columns:
+            continue
+
+        if log_dict["synapse_folder_id"] != synapse_folder_id:
+            continue
+
+        compatible_log_files[log_file] = log_dict
+
+    return compatible_log_files
+
+
+def merge_partial_region_logs(
+    compatible_log_files,
+):
+    if len(compatible_log_files) == 0:
+        return {}
+    merged_log = {}
+    merging_msg = f"""
+    Error when merging partial logs for the region. Please
+    check that pre-existing results are consistent with each other."""
+
+    # Keys that should be identical
+    identical_keys = ["log10p_threshold", "regenie_columns", "csv_columns", "synapse_folder_id"]
+
+    # Keys for lists that should have same content
+    equivalent_keys = ["all_tar_files"]
+
+    # Keys should be the union (but with no duplicates!)
+    union_no_dups_keys = [
+        "tar_processed", "tar_downloaded_skip", "tar_skipped",
+        "partial_log_merged"
+    ]
+
+    # ----------- Keys that should be identical -----------
+    if len(compatible_log_files) > 0:
+        first_log_dict = next(iter(compatible_log_files.values()))
+
+        for key in identical_keys:
+
+            assert all([
+                log_dict[key] == first_log_dict[key]
+                for log_dict in compatible_log_files.values()
+            ])
+
+            merged_log[key] = first_log_dict[key]
+
+    # ----------- Keys that should be equivalent -----------
+    if len(compatible_log_files) > 0:
+        first_log_dict = next(iter(compatible_log_files.values()))
+
+        for key in equivalent_keys:
+
+            assert all([
+                set(log_dict[key]) == set(first_log_dict[key])
+                for log_dict in compatible_log_files.values()
+            ])
+            assert all([
+                len(log_dict[key]) == len(first_log_dict[key])
+                for log_dict in compatible_log_files.values()
+            ])
+
+            merged_log[key] = first_log_dict[key]
+
+    # ----- Keys that should be the union (but with no duplicates) -----
+    for key in union_no_dups_keys:
+
+        value = []
+        for log_fname, log_dict in compatible_log_files.items():
+            value += log_dict[key]
+        n_tot = len(value)
+        value = list(set(value))
+        n_unique = len(value)
+        assert n_unique == n_tot, f"""[ERR] Duplicates found for key {key}
+        in log files.{merging_msg}"""
+
+        merged_log[key] = value
+
+
+    # The true 'tar_skipped' remaining is a subset of the union of all
+    # tar_skipped, minus the union of tar_processed
+    merged_log["tar_skipped"] = [
+        tar_fname for tar_fname in merged_log["tar_skipped"]
+        if tar_fname not in merged_log["tar_processed"]
+    ]
+
+
+    # Then merged all the remaining keys, which should be protein names
+    for log_fname, log_dict in compatible_log_files.items():
+
+        # Protein in this log file
+        remaining_keys = [
+            k for k in log_dict.keys()
+            if k not in identical_keys + union_no_dups_keys + equivalent_keys
+        ]
+
+        for key in remaining_keys:
+            assert key not in merged_log, f"""[ERR] Protein {key} found in multiple log files.{merging_msg}"""
+            merged_log[key] = log_dict[key]
+
+    # update the list of merged log files with the currently merged log files
+    merged_log["partial_log_merged"] += list(compatible_log_files.keys())
+
+    # Check that there is no dup
+    n_tot = len(merged_log["partial_log_merged"])
+    merged_log["partial_log_merged"] = list(set(merged_log["partial_log_merged"]))
+    n_unique = len(merged_log["partial_log_merged"])
+    assert n_unique == n_tot, f"""[ERR] Duplicates found in log files.{merging_msg}"""
+
+    return merged_log
 
 
 
@@ -476,58 +631,83 @@ def process_one_region_folder(
         log10p_threshold = LOG10P_THRESHOLD,
         create_log = CREATE_LOG,
         log_kwargs = LOG_KWARGS,
+        protein_to_process = None,
         verbose=False,
         delete_downloaded_tar = True,
         delete_chr_csv = True,
+        delete_tar_csv = True,
+        delete_partial_logs = True,
 ):
+    # NOTE: Even if create_log is False, partial log files will be created
+    # but they will be deleted at the end of the function if create_log is False
+    full_date = datetime.today().strftime('%Y-%m-%d--%H:%M:%S')
+    output_fname = f'{res_location}/output-process_one_region_folder-{full_date}.txt'
+
+    # Make sure path exists otherwise create it
+    p = pathlib.Path(output_fname)
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+    fout = open(output_fname, 'wt')
+    sys.stdout = fout
 
     t_start_region = time.time()
 
     # ----------- List of protein tar files in Region folder -----------
     # Get a list of (synapse_id, tar_name) for all the protein tar files
-    tar_entities = list_available_protein_tar_files(
+    folder_tar_entities = list_available_protein_tar_files(
         synapse_id=synapse_folder_id,
         login_kwargs=login_kwargs,
     )
 
-    tot_tar_files = len(tar_entities)
+    # Keeping only a subset if protein_to_process is specified
+    tar_entities = [
+        (synapse_id, tar_name)
+        for synapse_id, tar_name in folder_tar_entities
+        if (
+            (protein_to_process is None) or
+            (synapse_id in protein_to_process) or
+            (tar_name in protein_to_process)
+        )
+    ]
 
     if int(verbose) > 0:
-        print(f"Found {tot_tar_files} protein tar files in Synapse folder {synapse_folder_id}.")
-
-    # ---- Find pre-existing partial region log files ------------------
-    # Find filename of compatible logs
-    #
-    # Merge log as one dict
-
-    # Get
-
-    # List protein already processed by previous runs of the code.
+        print(f"Found {len(folder_tar_entities)} protein tar files in Synapse folder {synapse_folder_id}.")
+        print(f"Keeping only {len(tar_entities)} protein tar files after filtering for specified proteins.", flush=True)
 
     # ----------------- Preparing (partial) log for the region ---------
 
     res_fname = f"{res_location}/{synapse_folder_id}-significant_qtls"
     part_resfname = f"{res_location}/PART-{synapse_folder_id}-significant_qtls"
 
-    tot_tar_files = len(tar_entities)
-    tar_skipped = []
-    tar_downloaled_skip = []
-    tar_processed = []
     all_merged_csv_fnames = []
     dict_df_significant = {}
 
     log_reg = {
         "synapse_folder_id": synapse_folder_id,
-        "tot_tar_files": tot_tar_files,
+        "log10p_threshold": log10p_threshold,
+        "regenie_columns": regenie_columns,
+        "csv_columns": csv_columns,
+        "all_tar_files": [tar_name for _, tar_name in tar_entities],
         "log_filename": None,
+        "tar_skipped" : [],
+        "tar_processed": [],
+        "tar_downloaded_skip": [],
+        "partial_log_merged": [],
     }
 
-    full_date = datetime.today().strftime('%Y-%m-%d--%H:%M:%S')
     part_log_reg_fname = f"{part_resfname}-log-{full_date}.json"
     part_log_reg_fname = log_kwargs.pop("log_fname", part_log_reg_fname)
 
     # Save initial part log
     save_log(part_log_reg_fname, log_reg, add_date=False)
+
+    # ---- Find pre-existing partial region log files ------------------
+    compatible_log_files = find_partial_region_logs(
+        example_log_dict = log_reg,
+        res_location=res_location,
+    )
+
+    merged_partial_region_log = merge_partial_region_logs(compatible_log_files)
 
     # --------------  Process each protein one by one -----------------
     for synapse_id, tar_name in tar_entities:
@@ -543,13 +723,23 @@ def process_one_region_folder(
         # -------- Skipping if results pre-exist --------------
 
         # Don't run again if result file already exists
-        if os.path.isfile(f"{res_merged_fname}.csv"):
-            tar_skipped.append(tar_name)
+        # Or and if a corresponding partial log file corresponds
+        if (
+            os.path.isfile(f"{res_merged_fname}.csv") and
+            tar_name in merged_partial_region_log.get("tar_processed", [])
+        ):
+            log_reg["tar_skipped"].append((tar_name))
+
             if int(verbose) > 0:
                 print(
                     f"Result file already created: {res_merged_fname}.csv. Skipping.",
                     flush=True
                 )
+
+            if int(create_log) > 0:
+                if int(verbose) > 0:
+                    print(f"Updating partial log file for the region: {part_log_reg_fname}")
+                save_log(part_log_reg_fname, log_reg, overwrite=True, add_date=False)
 
         else:
 
@@ -557,7 +747,7 @@ def process_one_region_folder(
 
             # ------------ Download tar file --------------
 
-            tar_fname, skipped = download_protein_tar_file(
+            tar_local_fname, skipped = download_protein_tar_file(
                 synapse_id= synapse_id,
                 download_location=download_location,
                 login_kwargs=login_kwargs,
@@ -565,12 +755,12 @@ def process_one_region_folder(
             )
 
             if skipped:
-                tar_downloaled_skip.append(tar_name)
+                log_reg["tar_downloaded_skip"].append(tar_name)
 
             # ------------ Process tar file --------------
 
             all_csv_fnames, log_tar = process_one_tar_file(
-                tar_fname,
+                tar_local_fname,
                 res_location=res_location,
                 separator=regenie_sep,
                 columns = regenie_columns,
@@ -583,51 +773,52 @@ def process_one_region_folder(
 
             # --- Merge chr csv files that kept only significant QTLs --
 
+            merged_tar_csv_fname = f"{res_merged_fname}.csv"
             df_significant_qtls_prot, log_merged = merge_significant_qtls_from_all_chr_files(
                 all_csv_fnames,
-                output_fname=f"{res_merged_fname}.csv",
-                create_log=int(create_log) - 1,
+                output_fname=merged_tar_csv_fname,
+                create_log=False, # create log after merge
                 log_kwargs=log_kwargs,
+                delete_chr_csv=delete_chr_csv,
                 verbose=int(verbose) - 1,
             )
 
-            if delete_chr_csv:
-                for csv_fname in all_csv_fnames:
-                    if os.path.isfile(csv_fname):
-                        os.remove(csv_fname)
+            log_reg["tar_processed"].append(tar_name)
+
+            all_merged_csv_fnames.append(merged_tar_csv_fname)
 
             # ------- Add one column with the protein name -------------
+            original_columns = df_significant_qtls_prot.columns
             df_significant_qtls_prot = df_significant_qtls_prot.with_columns(
                 protein_name = pl.lit(protein_name)
+            )
+            # reorder columns to have protein_name first
+            df_significant_qtls_prot = df_significant_qtls_prot.select(
+                ["protein_name"] + original_columns
             )
 
             dict_df_significant[protein_name] = df_significant_qtls_prot
 
             t_end = time.time()
 
-            # ----------- Update logs for protein and region -----------
+            if int(verbose) > 0:
+                print(f"Processed tar file {tar_name} in {t_end - t_start:.2f} s", flush=True)
+
+            # ----------- Update logs for protein -----------
             # Merge dict (Duplicate keys like log_filename: keep log_tar value)
             log_tar = log_merged | log_tar
             log_tar["synapse_id"] = synapse_id
             log_tar["time_taken"] = t_end - t_start
 
-            log_reg[protein_name] = {
-                k: v for k, v in log_tar.items()
-                if k not in ["skipped_chr_files", "all_csv_fnames", "log10p_threshold"]
-            }
-            log_reg[protein_name]["n_skipped_chr_files"] = len(log_tar["skipped_chr_files"])
-            log_reg[protein_name]["time_taken"] = t_end - t_start
 
-
-            # --------- Create log file for the protein ---------------
-            if int(create_log) > 0:
+            if int(create_log) > 1:
+                # --------- Create log file for the protein ---------------
                 log_fname = f"{res_merged_fname}-log.json"
 
-                # There is already a log file from the call to
+                # There might be already a log file from the call to
                 # process_one_tar_file function, we will delete it
                 # after creating the new tar log file with more info
                 old_log_tar_fname = log_tar.pop("log_filename", None)
-
 
                 save_log(log_fname, log_tar, **log_kwargs)
 
@@ -635,13 +826,17 @@ def process_one_region_folder(
                 if old_log_tar_fname is not None and os.path.isfile(old_log_tar_fname):
                     os.remove(old_log_tar_fname)
 
-            tar_processed.append(tar_fname)
-            all_merged_csv_fnames.append(f"{res_merged_fname}.csv")
+            #  -------- Update partial log file for the region ----------
 
-            if int(verbose) > 0:
-                print(f"Processed tar file {tar_fname} in {t_end - t_start:.2f} s", flush=True)
+            # Don't include keys that are common to all tar file
+            # And don't include keys that are "too much"
+            log_reg[protein_name] = {
+                k: v for k, v in log_tar.items()
+                if k not in ["skipped_chr_files", "all_csv_fnames", "log10p_threshold", "regenie_columns", "csv_columns"]
+            }
+            log_reg[protein_name]["n_skipped_chr_files"] = len(log_tar["skipped_chr_files"])
+            log_reg[protein_name]["time_taken"] = t_end - t_start
 
-            # Update partial log file for the region
             if int(create_log) > 0:
                 if int(verbose) > 0:
                     print(f"Updating partial log file for the region: {part_log_reg_fname}")
@@ -651,15 +846,13 @@ def process_one_region_folder(
             # ----- Delete the downloaded tar file to save space (optional)
             if not skipped and delete_downloaded_tar:
                 if int(verbose) > 0:
-                    print(f"Deleting downloaded tar file {tar_fname} to save space.")
-                os.remove(tar_fname)
-
-
+                    print(f"Deleting downloaded tar file {tar_local_fname} to save space.")
+                os.remove(tar_local_fname)
 
 
     # --------------- Merge all merged CSV files ------------------
 
-    # Concat all the dataframes
+    # Concat all the protein dataframes
     all_significant_qtls = pl.concat([
         df for prot, df in dict_df_significant.items()
         if len(df) > 0
@@ -668,41 +861,67 @@ def process_one_region_folder(
     # Save the concatenated dataframe to a new file
     all_significant_qtls.write_csv( f"{res_fname}.csv")
 
-    t_end_region = time.time()
+    # ------------ Merge partial logs with current log -------
+
+    # Merge the current partial log with the merged pre-existing region logs
+    compatible_log_files[log_reg["log_filename"]] = log_reg
+
+    final_log_reg = merge_partial_region_logs(compatible_log_files)
 
     # ---------------Create log file for the region ------------------
-    log_reg["tar_skipped"] = tar_skipped
-    log_reg["n_tar_skipped"] = len(tar_skipped)
-    log_reg["n_tar_download_skip"] = len(tar_downloaled_skip)
-    log_reg["n_tar_processed"] = len(tar_processed)
-    log_reg["time_taken"] = t_end_region - t_start_region
 
     if int(create_log) > 0:
         # If log_fname not in log_kwargs, use a default one
-        # TODO: Change this with the actual final filename!!
-        # TODO: Change this with no overwrite!
-        save_log(part_log_reg_fname, log_reg, overwrite=True, add_date=False)
+        save_log(f"{res_fname}-log.json", final_log_reg, **log_kwargs)
 
+    # ---------------------Sanity Checks ------------------
+    # At the end, there should be no skipped tar file
+    err_msg = f"[ERR] There are still skipped tar files after merging logs: {final_log_reg["tar_skipped"]}."
+    assert final_log_reg["tar_skipped"] == [], err_msg
+    # At the end, all tar files should be in the list of processed tar files
+    err_msg = f"[ERR] Missing tar files in the list of processed tar files."
+    expected_tar_files = set(tar_name for tar_id, tar_name in tar_entities)
+    assert set(final_log_reg["tar_processed"]) == expected_tar_files, f"{err_msg}. Expected: {expected_tar_files}, got: {set(final_log_reg['tar_processed'])}"
+    assert set(final_log_reg["tar_processed"]) == set(final_log_reg["all_tar_files"]), f"{err_msg}. Expected: {set(final_log_reg['all_tar_files'])}, got: {set(final_log_reg['tar_processed'])}"
+
+    # ---------------- Delete tar csv files ----------------------
+    if delete_tar_csv:
+        for csv_fname in all_merged_csv_fnames:
+            if os.path.isfile(csv_fname):
+                os.remove(csv_fname)
+        if int(verbose) > 0:
+            print(f"Deleted {len(all_merged_csv_fnames)} protein csv files to save space.")
+
+    # ---------------- Delete partial log files ----------------------
+    if delete_partial_logs == "all":
+        for log_fname in final_log_reg["partial_log_merged"]:
+            if os.path.isfile(log_fname):
+                os.remove(log_fname)
+        if int(verbose) > 0 and len(final_log_reg["partial_log_merged"]) > 0:
+            print(f"Deleted {len(final_log_reg["partial_log_merged"])} partial log files.")
+    elif delete_partial_logs == "current" or delete_partial_logs == True:
+        if os.path.isfile(part_log_reg_fname):
+            os.remove(part_log_reg_fname)
+        if int(verbose) > 0:
+            print(f"Deleted current partial log file {part_log_reg_fname}.")
+
+    # ------------------- Verbose -----------------------------------
+    t_end_region = time.time()
     if int(verbose) > 0:
         print(f"Processed region tar files in {t_end_region - t_start_region:.2f} s", flush=True)
 
-    if tar_downloaled_skip and int(verbose) > 0:
-        print(f"{len(tar_downloaled_skip)}/{tot_tar_files} tar files were already downloaded.")
+    if log_reg["tar_downloaded_skip"] and int(verbose) > 0:
+        print(f"{len(log_reg['tar_downloaded_skip'])}/{len(log_reg['all_tar_files'])} tar files were already downloaded.")
 
-    if tar_skipped:
-        print(f"[WARNING]: {len(tar_skipped)}/{tot_tar_files}  skipped tar files! ")
+    if log_reg["tar_skipped"]:
+        print(f"[WARNING]: {len(log_reg['tar_skipped'])}/{len(log_reg['all_tar_files'])}  skipped tar files! ")
         print(CONSISTENCY_MESSAGE)
+
+    fout.close()
 
     return all_significant_qtls, log_reg
 
-
-# TODO: Update the log_reg after every tar
-
-
 # TODO: One function that detects whether the ID is a chr, a tar or a folder and redirected as appropriate
-
-# Add info about n_skipped, n_processed regarding the files
-# Have a create_log parameter, set to False by default, that create a log file with the info about n_skipped, n_processed, fnames, the time taken for each step, date of execution. The log file will be a CSV file.
 
 # TODO: process map files as well, in another file
 # -
