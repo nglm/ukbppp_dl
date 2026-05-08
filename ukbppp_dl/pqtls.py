@@ -69,8 +69,6 @@ def save_log(
         verbose=False
     ):
 
-
-
     if add_date:
         # Create a new filename by adding a suffix to the original filename
         ext = Path(log_fname).suffix
@@ -283,14 +281,14 @@ def process_one_chr_from_protein_tar_file(
 
         if int(verbose) > 0:
             print(
-                f"Results for chromosome file {chr_gz_fname} already created at {res_csv_fname}. Skipping.",
+                f"\nResults for chromosome file {chr_gz_fname} already created at {res_csv_fname}. Skipping.",
                 flush=True
             )
 
     else:
 
         if int(verbose) > 0:
-            print(f"Processing chromosome file:     {chr_gz_fname}.")
+            print(f"\nProcessing chromosome file:     {chr_gz_fname}.")
 
         t_start = time.time()
 
@@ -322,8 +320,8 @@ def process_one_chr_from_protein_tar_file(
             save_log(log_fname, log_chr, **log_kwargs)
 
         if int(verbose) > 0:
-            print(f"Significant QTLs saved to: {res_csv_fname}", flush=True)
-            print(f"Processed chromosome file {chr_gz_fname_full} in {t_end - t_start:.2f} s", flush=True)
+            print(f"Significant QTLs saved to:      {res_csv_fname}", flush=True)
+            print(f"Processed chromosome file in:   {t_end - t_start:.2f} s", flush=True)
 
     return res_csv_fname, log_chr
 
@@ -338,6 +336,10 @@ def merge_significant_qtls_from_all_chr_files(
     ):
     if not csv_fnames:
         return None, None
+
+    if verbose:
+        print(f"    {"-"*50}  ")
+        print(f"Merging significant QTLs from chromosome files.", flush=True)
 
     # Read all the significant QTLs from the different chromosome files and concatenate them into one dataframe
     all_df = [pl.read_csv(csv_fname) for csv_fname in csv_fnames]
@@ -382,12 +384,13 @@ def merge_significant_qtls_from_all_chr_files(
                 os.remove(csv_fname)
 
     if int(verbose) > 0:
-        print(f"Merged significant QTLs from {len(csv_fnames)} files")
+        print(f"\nMerged significant QTLs from {len(csv_fnames)} files.")
         if output_fname:
-            print(f"All significant QTLs saved to:   {output_fname}")
+            print(f"All significant QTLs saved to:  {output_fname}")
         else:
             print(f"Significant QTLs concatenated but not saved to file.")
-        print(f"Total significant QTLs:          {n_kept_qtls}", flush=True)
+        print(f"Total significant QTLs:         {n_kept_qtls}")
+        print(f"  {"-"*50}  \n", flush=True)
 
     return all_significant_qtls, log
 
@@ -428,6 +431,9 @@ def process_one_tar_file(
             "csv_columns": new_columns,
         }
 
+        if verbose:
+            print(f"Going through chromosome files...")
+            print(f"    {"-"*50}  ")
         # Focusing on one chromosome at a time
         # For each chr, there one .gz file containing one .regenie file
         for chr_gz_fname in list_of_chr_files:
@@ -450,6 +456,9 @@ def process_one_tar_file(
             else:
                 log_tar["n_processed_qtls"] += log_chr["n_tot_qtls"]
             log_tar["all_csv_fnames"].append(res_csv_fname)
+
+        if verbose:
+            print(f"    {"-"*50}  ")
 
 
     if log_tar["skipped_chr_files"]:
@@ -712,12 +721,16 @@ def process_one_region_folder(
     # --------------  Process each protein one by one -----------------
     for synapse_id, tar_name in tar_entities:
 
-        if int(verbose) > 0:
-            print(f"Processing Synapse ID: {synapse_id}")
-
         # Preparing result filename keeping only significant QTLs
         protein_name = f"{Path(tar_name).stem.split('_')[0]}"
         res_merged_fname = f"{res_location}/{protein_name}-significant_qtls"
+
+        if int(verbose) > 0:
+            print(f"\n┌─{'─'*70}─┐")
+            print(f"{" "*10} Protein {protein_name} | Synapse ID: {synapse_id}")
+            print(f"\n└─{'─'*70}─┘", flush=True)
+
+
 
 
         # -------- Skipping if results pre-exist --------------
@@ -852,14 +865,25 @@ def process_one_region_folder(
 
     # --------------- Merge all merged CSV files ------------------
 
+    if verbose:
+        print(f"{"="*80}")
+        print(f"Merging significant QTLs from {len(dict_df_significant)} protein files.", flush=True)
+
     # Concat all the protein dataframes
-    all_significant_qtls = pl.concat([
-        df for prot, df in dict_df_significant.items()
-        if len(df) > 0
-    ])
+    non_empty_dfs = [
+        df for prot, df in dict_df_significant.items() if len(df) > 0
+    ]
+    all_significant_qtls = pl.concat([non_empty_dfs])
 
     # Save the concatenated dataframe to a new file
     all_significant_qtls.write_csv( f"{res_fname}.csv")
+
+    if verbose:
+        print(f"Found {len(non_empty_dfs)} proteins with at least one significant QTL.")
+        print(f"All significant QTLs saved to:  {f"{res_fname}.csv"}")
+        print(f"Total significant QTLs:         {len(all_significant_qtls)}")
+        print(f"{"="*80}", flush=True)
+
 
     # ------------ Merge partial logs with current log -------
 
@@ -874,9 +898,10 @@ def process_one_region_folder(
         # If log_fname not in log_kwargs, use a default one
         save_log(f"{res_fname}-log.json", final_log_reg, **log_kwargs)
 
+
     # ---------------------Sanity Checks ------------------
     # At the end, there should be no skipped tar file
-    err_msg = f"[ERR] There are still skipped tar files after merging logs: {final_log_reg["tar_skipped"]}."
+    err_msg = f"[ERR] There are still skipped tar files after merging logs: {final_log_reg["tar_skipped"]})."
     assert final_log_reg["tar_skipped"] == [], err_msg
     # At the end, all tar files should be in the list of processed tar files
     err_msg = f"[ERR] Missing tar files in the list of processed tar files."
@@ -908,6 +933,7 @@ def process_one_region_folder(
     # ------------------- Verbose -----------------------------------
     t_end_region = time.time()
     if int(verbose) > 0:
+        print(f"\n{"="*80}", flush=True)
         print(f"Processed region tar files in {t_end_region - t_start_region:.2f} s", flush=True)
 
     if log_reg["tar_downloaded_skip"] and int(verbose) > 0:
