@@ -278,7 +278,7 @@ def test_process_one_region_folder():
     all_significant_qtls, log_reg = process_one_region_folder(
         synapse_folder_id=REGION_PQTL_DIR,
         download_location=DOWNLOAD_LOCATION,
-        res_location=RES_LOCATION,
+        res_location=f"{RES_LOCATION}/test_with_chr_json",
         login_kwargs=LOGIN_KWARGS,
         regenie_sep=REGENIE_SEP,
         regenie_columns = MANDATORY_COLUMNS,
@@ -292,6 +292,7 @@ def test_process_one_region_folder():
         delete_chr_csv = True,
         delete_tar_csv = True,
         delete_partial_logs = True,
+        delete_partial_outputs = True,
     )
 
     assert isinstance(all_significant_qtls, pl.DataFrame)
@@ -317,6 +318,7 @@ def test_process_one_region_folder():
         delete_tar_csv = True,
         delete_tar_log = True,
         delete_partial_logs = "current",
+        delete_partial_outputs = "current",
     )
 
     assert isinstance(all_significant_qtls, pl.DataFrame)
@@ -325,7 +327,7 @@ def test_process_one_region_folder():
     all_significant_qtls, log_reg = process_one_region_folder(
         synapse_folder_id=REGION_PQTL_DIR,
         download_location=DOWNLOAD_LOCATION,
-        res_location=RES_LOCATION,
+        res_location=f"{RES_LOCATION}/test_deleted_all",
         login_kwargs=LOGIN_KWARGS,
         regenie_sep=REGENIE_SEP,
         regenie_columns = MANDATORY_COLUMNS,
@@ -340,6 +342,7 @@ def test_process_one_region_folder():
         delete_tar_csv = True,
         delete_tar_log = True,
         delete_partial_logs = "all",
+        delete_partial_outputs = "all",
     )
 
     assert isinstance(all_significant_qtls, pl.DataFrame)

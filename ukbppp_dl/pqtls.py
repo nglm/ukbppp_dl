@@ -281,14 +281,14 @@ def process_one_chr_from_protein_tar_file(
 
         if int(verbose) > 0:
             print(
-                f"\nResults for chromosome file {chr_gz_fname} already created at {res_csv_fname}. Skipping.",
+                f"\n\tResults for chromosome file {chr_gz_fname} already created at {res_csv_fname}. Skipping.",
                 flush=True
             )
 
     else:
 
         if int(verbose) > 0:
-            print(f"\nProcessing chromosome file:     {chr_gz_fname}.")
+            print(f"\n\tProcessing chromosome file:     {chr_gz_fname}.")
 
         t_start = time.time()
 
@@ -320,8 +320,8 @@ def process_one_chr_from_protein_tar_file(
             save_log(log_fname, log_chr, **log_kwargs)
 
         if int(verbose) > 0:
-            print(f"Significant QTLs saved to:      {res_csv_fname}", flush=True)
-            print(f"Processed chromosome file in:   {t_end - t_start:.2f} s", flush=True)
+            print(f"\tSignificant QTLs saved to:      {res_csv_fname}", flush=True)
+            print(f"\tProcessed chromosome file in:   {t_end - t_start:.2f} s", flush=True)
 
     return res_csv_fname, log_chr
 
@@ -433,7 +433,6 @@ def process_one_tar_file(
 
         if verbose:
             print(f"Going through chromosome files...")
-            print(f"    {"-"*50}  ")
         # Focusing on one chromosome at a time
         # For each chr, there one .gz file containing one .regenie file
         for chr_gz_fname in list_of_chr_files:
@@ -456,9 +455,6 @@ def process_one_tar_file(
             else:
                 log_tar["n_processed_qtls"] += log_chr["n_tot_qtls"]
             log_tar["all_csv_fnames"].append(res_csv_fname)
-
-        if verbose:
-            print(f"    {"-"*50}  ")
 
 
     if log_tar["skipped_chr_files"]:
@@ -507,7 +503,7 @@ def find_partial_region_logs(
 
     compatible_log_files = {}
     non_protein_keys = [
-        "synapse_folder_id", "log10p_threshold", "regenie_columns", "csv_columns", "all_tar_files", "log_filename", "output_fname", "tar_skipped", "tar_processed", "tar_downloaded_skip", "all_proteins", "kept_proteins", "partial_log_merged", "partial_output_fname",
+        "synapse_folder_id", "log10p_threshold", "regenie_columns", "csv_columns", "all_tar_files", "log_filename", "output_filename", "tar_skipped", "tar_processed", "tar_downloaded_skip", "all_proteins", "kept_proteins", "partial_log_merged", "partial_output_filenames",
     ]
     to_keep = True
 
@@ -537,7 +533,7 @@ def find_partial_region_logs(
             continue
 
         # --------------- Check output text still exist ---------------
-        output_fname = log_dict["output_fname"]
+        output_fname = log_dict["output_filename"]
         if not os.path.isfile(output_fname):
             to_keep = False
             continue
@@ -582,7 +578,7 @@ def merge_partial_region_logs(
     equivalent_keys = ["all_tar_files"]
 
     # Those keys become non-empty only after merging
-    empty_list_keys = ["all_proteins", "kept_proteins", "partial_log_merged", "partial_output_fname"]
+    empty_list_keys = ["all_proteins", "kept_proteins", "partial_log_merged", "partial_output_filenames"]
 
     # Keys that must be the union but that must contain no duplicates
     union_no_dups_keys = [
@@ -592,8 +588,8 @@ def merge_partial_region_logs(
     # Keys that may have duplicates
     union_keys = ["tar_skipped"]
 
-    # Keys that must be different between each log
-    different_keys = ["log_filename", "output_fname"]
+    # Keys that must be different between each log and not None
+    different_keys = ["log_filename", "output_filename"]
 
     # Keys to treat differently but that are not protein names
     other_keys = []
@@ -637,6 +633,7 @@ def merge_partial_region_logs(
 
             # Take the first log as reference
             merged_log[key] = first_log_dict[key]
+            merged_log[key].sort()
 
     # ----------- Keys that must be different -----------
     for key in different_keys:
@@ -647,6 +644,9 @@ def merge_partial_region_logs(
             for log_fname, log_dict in compatible_log_files.items()
         ]
         assert len(set(all_values)) == len(all_values), f"""[ERR] Key {key} should be different in all log files, but found duplicates.{merging_msg}"""
+
+        # We don't accept None, all must be strings
+        assert None not in all_values, f"""[ERR] Key {key} can not contain None values.{merging_msg}"""
 
         # Then we leave values untouched
 
@@ -666,6 +666,7 @@ def merge_partial_region_logs(
 
         # Then we take the union of all values
         merged_log[key] = all_values
+        merged_log[key].sort()
 
     # ----- Keys that should be the union (may have duplicates) -----
     for key in union_keys:
@@ -674,10 +675,11 @@ def merge_partial_region_logs(
         for log_fname, log_dict in compatible_log_files.items():
             all_values += log_dict[key]
 
-        # There could be duplicates, but we don't keep duplicates
+        # There could be duplicates, but we don't keep only unique values
         all_values = list(set(all_values))
 
         merged_log[key] = all_values
+        merged_log[key].sort()
 
     # --------------------- tar skipped --------------------------------
     # The true 'tar_skipped' remaining is a subset of the union of all
@@ -697,6 +699,8 @@ def merge_partial_region_logs(
             k for k in log_dict.keys()
             if k not in non_protein_keys
         ]
+        # Sort them so that we write them in json sorted
+        remaining_keys.sort()
 
         for key in remaining_keys:
             assert key not in merged_log, f"""[ERR] Protein {key} found in multiple log files.{merging_msg}"""
@@ -706,18 +710,22 @@ def merge_partial_region_logs(
     # ------------------ Merged log files references -------------------
 
     # Update the list of output and log fnames
-    concat_keys = ["partial_log_merged", "partial_output_fname"]
+    concat_keys = [
+        ("partial_log_merged", "log_filename"),
+        ("partial_output_filenames","output_filename")
+    ]
 
-
-    for key in concat_keys:
-        merged_log[key] = []
+    for key_merged, key_source in concat_keys:
+        merged_log[key_merged] = []
         for log_fname, log_dict in compatible_log_files.items():
-            merged_log[key] += log_dict[key]
+            merged_log[key_merged].append(log_dict[key_source])
+
+        merged_log[key_merged].sort()
 
         # Check that there is no dup
-        n_tot = len(merged_log[key])
-        merged_log[key] = list(set(merged_log[key]))
-        n_unique = len(merged_log[key])
+        n_tot = len(merged_log[key_merged])
+        merged_log[key_merged] = list(set(merged_log[key_merged]))
+        n_unique = len(merged_log[key_merged])
         assert n_unique == n_tot, f"""[ERR] Duplicates found in log files.{merging_msg}"""
 
 
@@ -743,6 +751,7 @@ def process_one_region_folder(
         delete_tar_csv = True,
         delete_tar_log = True,
         delete_partial_logs = "current",
+        delete_partial_outputs = "current",
 ):
     # NOTE: Even if create_log is False, partial log files will be created
     # but they will be deleted at the end of the function if create_log is False
@@ -751,6 +760,7 @@ def process_one_region_folder(
 
     full_date = datetime.today().strftime('%Y-%m-%d--%H:%M:%S')
     output_fname = f'{res_location}/output-process_one_region_folder-{full_date}.txt'
+    part_output_fname = f'{res_location}/PART-output-process_one_region_folder-{full_date}.txt'
     res_fname = f"{res_location}/{synapse_folder_id}-significant_qtls"
     part_resfname = f"{res_location}/PART-{synapse_folder_id}-significant_qtls"
 
@@ -758,7 +768,7 @@ def process_one_region_folder(
     p = pathlib.Path(output_fname)
     p.parent.mkdir(parents=True, exist_ok=True)
 
-    fout = open(output_fname, 'wt')
+    fout = open(part_output_fname, 'wt')
     sys.stdout = fout
 
     t_start_region = time.time()
@@ -797,14 +807,14 @@ def process_one_region_folder(
         "csv_columns": csv_columns,
         "all_tar_files": [tar_name for _, tar_name in tar_entities],
         "log_filename": None,
-        "output_fname": output_fname,
+        "output_filename": part_output_fname,
         "tar_skipped" : [],
         "tar_processed": [],
         "tar_downloaded_skip": [],
         "all_proteins": [],
         "kept_proteins" : [],
         "partial_log_merged": [],
-        "partial_output_fname" : [],
+        "partial_output_filenames" : [],
     }
 
     # ---- Find pre-existing partial region log files ------------------
@@ -832,9 +842,9 @@ def process_one_region_folder(
         res_merged_fname = f"{res_location}/{protein_name}-significant_qtls"
 
         if int(verbose) > 0:
-            print(f"\n┌─{'─'*70}─┐")
+            print(f"\n┌─{'─'*62}─┐")
             print(f"{" "*10} Protein {protein_name} | Synapse ID: {synapse_id}")
-            print(f"\n└─{'─'*70}─┘", flush=True)
+            print(f"\n└─{'─'*62}─┘", flush=True)
 
 
         # -------- Skipping if results pre-exist --------------
@@ -1015,6 +1025,36 @@ def process_one_region_folder(
         print(f"Total significant QTLs:         {len(all_significant_qtls)}")
         print(f"{"="*80}", flush=True)
 
+
+    # ------------------- Merge output files ---------------------------
+    fout.close()
+
+    # Get list of all output filenames
+    filenames = final_log_reg["partial_output_filenames"]
+    # We want them sorted because it matches the creation order
+    filenames.sort()
+    with open(output_fname, 'wt') as outfile:
+        for fname in filenames:
+            with open(fname) as infile:
+
+                # Add a separator between each part file
+                outfile.write("─"*80 + "\n")
+                outfile.write(f"{' '*6} From: {os.path.basename(fname)} " + "\n")
+                outfile.write("─"*80 + "\n\n")
+
+                # Add content of part file
+                outfile.write(infile.read())
+
+        # And a final separator
+        outfile.write("\n\n" + "─"*80 + "\n")
+        outfile.write(f"{' '*6} From: {os.path.basename(output_fname)} " + "\n")
+        outfile.write("─"*80 + "\n\n")
+
+    # Use this final output file as the output filename
+    fout = open(output_fname, 'at')
+    sys.stdout = fout
+    final_log_reg["output_filename"] = output_fname
+
     # ---------------Create log file for the region ------------------
 
     if int(create_log) > 0:
@@ -1044,7 +1084,8 @@ def process_one_region_folder(
         for protein in final_log_reg["all_proteins"]:
             fname = final_log_reg[protein]["merged_csv_fname"]
             if fname is not None and os.path.isfile(fname):
-                print(f"Deleting {fname}.")
+                if int(verbose) > 0:
+                    print(f"Deleting {fname}.")
                 os.remove(fname)
                 n_deleted += 1
         if int(verbose) > 0:
@@ -1056,7 +1097,8 @@ def process_one_region_folder(
         for protein in final_log_reg["all_proteins"]:
             fname = final_log_reg[protein]["log_filename"]
             if fname is not None and os.path.isfile(fname):
-                print(f"Deleting {fname}.")
+                if int(verbose) > 0:
+                    print(f"Deleting {fname}.")
                 os.remove(fname)
                 n_deleted += 1
         if int(verbose) > 0:
@@ -1068,7 +1110,8 @@ def process_one_region_folder(
         n_deleted = 0
         for fname in final_log_reg["partial_log_merged"]:
             if fname is not None and os.path.isfile(fname):
-                print(f"Deleting {fname}.")
+                if int(verbose) > 0:
+                    print(f"Deleting {fname}.")
                 os.remove(fname)
                 n_deleted += 1
         if int(verbose) > 0 and n_deleted > 0:
@@ -1081,6 +1124,26 @@ def process_one_region_folder(
             if int(verbose) > 0:
                 print(f"Deleted current partial log file {part_log_reg_fname}.")
 
+    # ---------------- Delete partial output files ----------------------
+    # Deleting all partial outputs used to create this final output
+    if delete_partial_outputs == "all":
+        n_deleted = 0
+        for fname in final_log_reg["partial_output_filenames"]:
+            if fname is not None and os.path.isfile(fname):
+                if int(verbose) > 0:
+                    print(f"Deleting {fname}.")
+                os.remove(fname)
+                n_deleted += 1
+        if int(verbose) > 0 and n_deleted > 0:
+            print(f"Deleted {n_deleted} partial output files.")
+
+    # Deleting only the current partial output created by this run
+    elif delete_partial_outputs == "current" or delete_partial_outputs == True:
+        if os.path.isfile(part_output_fname):
+            os.remove(part_output_fname)
+            if int(verbose) > 0:
+                print(f"Deleted current partial output file {part_output_fname}.")
+
     # ------------------- Verbose -----------------------------------
     t_end_region = time.time()
     if int(verbose) > 0:
@@ -1090,8 +1153,8 @@ def process_one_region_folder(
     if final_log_reg["tar_downloaded_skip"] and int(verbose) > 0:
         print(f"{len(final_log_reg['tar_downloaded_skip'])}/{len(final_log_reg['all_tar_files'])} tar files were already downloaded.")
 
-    fout.close()
 
+    fout.close()
     return all_significant_qtls, log_reg
 
 # TODO: One function that detects whether the ID is a chr, a tar or a folder and redirected as appropriate
