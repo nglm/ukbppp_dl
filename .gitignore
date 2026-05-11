@@ -14,5 +14,6 @@ notes/*
 data/*
 results/*
 results_tests/*
+results_tests_aux/*
 *.pdf
 !paper.pdf

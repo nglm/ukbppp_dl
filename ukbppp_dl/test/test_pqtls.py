@@ -189,7 +189,7 @@ def test_process_one_chr_from_protein_tar_file():
     if log["skipped"]:
         assert True
     else:
-        keys = ["log10p_threshold", "n_tot_qtls", "n_kept_qtls", "source_chr_file", "skipped", "log_fname"]
+        keys = ["log10p_threshold", "n_tot_qtls", "n_kept_qtls", "source_chr_file", "skipped", "log_filename"]
         assert all(key in log for key in keys), f"Missing keys in log: {[key for key in keys if key not in log]}"
         assert log["log10p_threshold"] == 2
         assert log["n_tot_qtls"] >= log["n_kept_qtls"]
@@ -284,19 +284,21 @@ def test_process_one_region_folder():
         regenie_columns = MANDATORY_COLUMNS,
         csv_columns=NEW_COLUMN_NAMES,
         log10p_threshold=LOG10P_THRESHOLD,
-        create_log=2,
+        create_log=3,
         log_kwargs=LOG_KWARGS,
         protein_to_process = [ACOT13_ID, ZNF174_ID],
-        verbose=3,
+        verbose=1,
         delete_downloaded_tar = False,
         delete_chr_csv = True,
-        delete_tar_csv = False,
-        delete_partial_logs = False,
+        delete_tar_csv = True,
+        delete_partial_logs = True,
     )
 
     assert isinstance(all_significant_qtls, pl.DataFrame)
     assert isinstance(log_reg, dict)
 
+
+    # In this test we will reuse a part-file (that we hopfully won't delete each time)
     all_significant_qtls, log_reg = process_one_region_folder(
         synapse_folder_id=REGION_PQTL_DIR,
         download_location=DOWNLOAD_LOCATION,
@@ -314,7 +316,7 @@ def test_process_one_region_folder():
         delete_chr_csv = True,
         delete_tar_csv = True,
         delete_tar_log = True,
-        delete_partial_logs = "all",
+        delete_partial_logs = "current",
     )
 
     assert isinstance(all_significant_qtls, pl.DataFrame)
@@ -329,10 +331,10 @@ def test_process_one_region_folder():
         regenie_columns = MANDATORY_COLUMNS,
         csv_columns=NEW_COLUMN_NAMES,
         log10p_threshold=LOG10P_THRESHOLD,
-        create_log=2,
+        create_log=0,
         log_kwargs=LOG_KWARGS,
         protein_to_process = [ACOT13_ID, ZNF174_ID],
-        verbose=3,
+        verbose=2,
         delete_downloaded_tar = False,
         delete_chr_csv = True,
         delete_tar_csv = True,

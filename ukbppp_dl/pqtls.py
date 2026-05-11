@@ -506,28 +506,54 @@ def find_partial_region_logs(
         print(f"Found {len(log_files)} pre-existing partial log files.")
 
     compatible_log_files = {}
+    non_protein_keys = [
+        "synapse_folder_id", "log10p_threshold", "regenie_columns", "csv_columns", "all_tar_files", "log_filename", "output_fname", "tar_skipped", "tar_processed", "tar_downloaded_skip", "all_proteins", "kept_proteins", "partial_log_merged", "partial_output_fname",
+    ]
+    to_keep = True
 
     for log_file in log_files:
         with open(f"{res_location}/{log_file}", 'r') as f_log:
             log_dict = json.load(f_log)
 
-        # Check that values are consistent
+        # ----- Check that essential parameters are consistent -----
         if log_dict["log10p_threshold"] != log10p_threshold:
+            to_keep = False
             continue
 
         if log_dict["regenie_columns"] != regenie_columns:
+            to_keep = False
             continue
 
         if log_dict["csv_columns"] != csv_columns:
+            to_keep = False
             continue
 
         if log_dict["synapse_folder_id"] != synapse_folder_id:
+            to_keep = False
             continue
 
         if all_tar_files is not None and set(log_dict["all_tar_files"]) != set(all_tar_files):
+            to_keep = False
             continue
 
-        compatible_log_files[f"{res_location}/{log_file}"] = log_dict
+        # --------------- Check output text still exist ---------------
+        output_fname = log_dict["output_fname"]
+        if not os.path.isfile(output_fname):
+            to_keep = False
+            continue
+
+        # --------------- Check that results still exist ---------------
+        protein_keys = [k for k in log_dict.keys() if k not in non_protein_keys]
+        for prot in protein_keys:
+
+            res_csv_fname = log_dict[prot]["merged_csv_fname"]
+            if not os.path.isfile(res_csv_fname):
+                to_keep = False
+                continue
+
+        # If we reach this line, it means that the log file is compatible
+        if to_keep:
+            compatible_log_files[f"{res_location}/{log_file}"] = log_dict
 
     if verbose:
         print(f"Found {len(compatible_log_files)}/{len(log_files)} partial log files with compatible parameters.")
@@ -538,6 +564,10 @@ def find_partial_region_logs(
 def merge_partial_region_logs(
     compatible_log_files,
 ):
+    # This function should be called only for log files created with the same parameters and created by running the function process_one_region_folder
+    # We cannot use this function with already merged log files.
+
+
     if len(compatible_log_files) == 0:
         return {}
     merged_log = {}
@@ -545,31 +575,36 @@ def merge_partial_region_logs(
     Error when merging partial logs for the region. Please
     check that pre-existing results are consistent with each other."""
 
-    # Keys that should be identical
+    # Keys that must be identical
     identical_keys = ["log10p_threshold", "regenie_columns", "csv_columns", "synapse_folder_id"]
 
-    # Keys for lists that should have same content
+    # Keys for lists that must have same content (maybe different order)
     equivalent_keys = ["all_tar_files"]
 
-    # Keys should be the union (but with no duplicates!)
+    # Those keys become non-empty only after merging
+    empty_list_keys = ["all_proteins", "kept_proteins", "partial_log_merged", "partial_output_fname"]
+
+    # Keys that must be the union but that must contain no duplicates
     union_no_dups_keys = [
-        "tar_processed", "tar_downloaded_skip", "partial_log_merged",
-        "all_proteins", "kept_proteins", "partial_output_fname"
+        "tar_processed", "tar_downloaded_skip",
     ]
 
     # Keys that may have duplicates
     union_keys = ["tar_skipped"]
 
-    # Keys that should be different
+    # Keys that must be different between each log
     different_keys = ["log_filename", "output_fname"]
 
-    # Keys to treat differently
+    # Keys to treat differently but that are not protein names
     other_keys = []
 
     # Non-protein keys
-    non_protein_keys = identical_keys + equivalent_keys + union_no_dups_keys + different_keys + union_keys + other_keys
+    non_protein_keys = [
+        *identical_keys, *equivalent_keys, *empty_list_keys,
+        *union_no_dups_keys, *union_keys, *different_keys, *other_keys
+    ]
 
-    # ----------- Keys that should be identical -----------
+    # ----------- Keys that must be identical -----------
     if len(compatible_log_files) > 0:
         first_log_dict = next(iter(compatible_log_files.values()))
 
@@ -580,58 +615,71 @@ def merge_partial_region_logs(
                 for log_dict in compatible_log_files.values()
             ])
 
+            # Take the first log as reference
             merged_log[key] = first_log_dict[key]
 
-    # ----------- Keys that should be equivalent -----------
+    # ----------- Keys that must be equivalent -----------
     if len(compatible_log_files) > 0:
         first_log_dict = next(iter(compatible_log_files.values()))
 
         for key in equivalent_keys:
 
+            # Same content (same unique elements)
             assert all([
                 set(log_dict[key]) == set(first_log_dict[key])
                 for log_dict in compatible_log_files.values()
             ])
+            # Same number of elements
             assert all([
                 len(log_dict[key]) == len(first_log_dict[key])
                 for log_dict in compatible_log_files.values()
             ])
 
+            # Take the first log as reference
             merged_log[key] = first_log_dict[key]
 
-    # ----------- Keys that should be different -----------
+    # ----------- Keys that must be different -----------
     for key in different_keys:
+
+        # Check that there is no duplicate if we take the list of all values
         all_values = [
             log_dict[key]
             for log_fname, log_dict in compatible_log_files.items()
         ]
         assert len(set(all_values)) == len(all_values), f"""[ERR] Key {key} should be different in all log files, but found duplicates.{merging_msg}"""
 
+        # Then we leave values untouched
+
     # ----- Keys that should be the union (but with no duplicates) -----
     for key in union_no_dups_keys:
 
-        value = []
+        all_values = []
         for log_fname, log_dict in compatible_log_files.items():
-            value += log_dict[key]
-        n_tot = len(value)
-        value = list(set(value))
-        n_unique = len(value)
+            all_values += log_dict[key]
+
+        # Check that there is no duplicate if we take the list of all values
+        n_tot = len(all_values)
+        all_values = list(set(all_values))
+        n_unique = len(all_values)
         assert n_unique == n_tot, f"""[ERR] Duplicates found for key {key}
         in log files.{merging_msg}"""
 
-        merged_log[key] = value
+        # Then we take the union of all values
+        merged_log[key] = all_values
 
     # ----- Keys that should be the union (may have duplicates) -----
     for key in union_keys:
 
-        value = []
+        all_values = []
         for log_fname, log_dict in compatible_log_files.items():
-            value += log_dict[key]
-        value = list(set(value))
+            all_values += log_dict[key]
 
-        merged_log[key] = value
+        # There could be duplicates, but we don't keep duplicates
+        all_values = list(set(all_values))
 
+        merged_log[key] = all_values
 
+    # --------------------- tar skipped --------------------------------
     # The true 'tar_skipped' remaining is a subset of the union of all
     # tar_skipped, minus the union of tar_processed
     merged_log["tar_skipped"] = [
@@ -640,6 +688,7 @@ def merge_partial_region_logs(
     ]
 
 
+    # --------------------- Protein keys -------------------------------
     # Then merged all the remaining keys, which should be protein names
     for log_fname, log_dict in compatible_log_files.items():
 
@@ -653,20 +702,24 @@ def merge_partial_region_logs(
             assert key not in merged_log, f"""[ERR] Protein {key} found in multiple log files.{merging_msg}"""
             merged_log[key] = log_dict[key]
 
-    # Update the list of output fnames with the currently merged log files
-    merged_log["partial_output_fname"] += [
-        log_dict["output_fname"] for log_dict in compatible_log_files.values()
-    ]
+
+    # ------------------ Merged log files references -------------------
+
+    # Update the list of output and log fnames
+    concat_keys = ["partial_log_merged", "partial_output_fname"]
 
 
-    # Update the list of merged log files with the currently merged log files
-    merged_log["partial_log_merged"] += list(compatible_log_files.keys())
+    for key in concat_keys:
+        merged_log[key] = []
+        for log_fname, log_dict in compatible_log_files.items():
+            merged_log[key] += log_dict[key]
 
-    # Check that there is no dup
-    n_tot = len(merged_log["partial_log_merged"])
-    merged_log["partial_log_merged"] = list(set(merged_log["partial_log_merged"]))
-    n_unique = len(merged_log["partial_log_merged"])
-    assert n_unique == n_tot, f"""[ERR] Duplicates found in log files.{merging_msg}"""
+        # Check that there is no dup
+        n_tot = len(merged_log[key])
+        merged_log[key] = list(set(merged_log[key]))
+        n_unique = len(merged_log[key])
+        assert n_unique == n_tot, f"""[ERR] Duplicates found in log files.{merging_msg}"""
+
 
     return merged_log
 
@@ -927,6 +980,13 @@ def process_one_region_folder(
             ["protein_name"] + original_columns
         )
 
+    # ------------ Merge partial logs with current log -------
+
+    # Merge the current partial log with the merged pre-existing region logs
+    compatible_log_files[log_reg["log_filename"]] = log_reg
+
+    final_log_reg = merge_partial_region_logs(compatible_log_files)
+
     # ------------- Merge all merged protein dataframes ----------------
 
     if verbose:
@@ -934,10 +994,10 @@ def process_one_region_folder(
         print(f"Merging significant QTLs from {len(dict_df_significant)} protein files.", flush=True)
 
     # Distinguish between proteins with and without at least one significant QTL
-    log_reg["kept_proteins"] = [
+    final_log_reg["kept_proteins"] = [
         prot for prot, df in dict_df_significant.items() if len(df) > 0
     ]
-    log_reg["all_proteins"] = list(dict_df_significant.keys())
+    final_log_reg["all_proteins"] = list(dict_df_significant.keys())
 
     # Concat all the protein dataframes
     non_empty_dfs = [
@@ -950,18 +1010,10 @@ def process_one_region_folder(
     all_significant_qtls.write_csv( f"{res_fname}.csv")
 
     if verbose:
-        print(f"Found {len(log_reg["kept_proteins"])}/{len(log_reg['all_proteins'])} proteins with at least one significant QTL.")
+        print(f"Found {len(final_log_reg['kept_proteins'])}/{len(final_log_reg['all_proteins'])} proteins with at least one significant QTL.")
         print(f"All significant QTLs saved to:  {f"{res_fname}.csv"}")
         print(f"Total significant QTLs:         {len(all_significant_qtls)}")
         print(f"{"="*80}", flush=True)
-
-
-    # ------------ Merge partial logs with current log -------
-
-    # Merge the current partial log with the merged pre-existing region logs
-    compatible_log_files[log_reg["log_filename"]] = log_reg
-
-    final_log_reg = merge_partial_region_logs(compatible_log_files)
 
     # ---------------Create log file for the region ------------------
 
@@ -971,21 +1023,27 @@ def process_one_region_folder(
 
 
     # ---------------------Sanity Checks ------------------
+
     # At the end, there should be no skipped tar file
     err_msg = f"[ERR] There are still skipped tar files after merging logs: {final_log_reg["tar_skipped"]})."
     assert final_log_reg["tar_skipped"] == [], err_msg
+
     # At the end, all tar files should be in the list of processed tar files
     err_msg = f"[ERR] Missing tar files in the list of processed tar files."
     expected_tar_files = set(tar_name for tar_id, tar_name in tar_entities)
     assert set(final_log_reg["tar_processed"]) == expected_tar_files, f"{err_msg}. Expected: {expected_tar_files}, got: {set(final_log_reg['tar_processed'])}"
     assert set(final_log_reg["tar_processed"]) == set(final_log_reg["all_tar_files"]), f"{err_msg}. Expected: {set(final_log_reg['all_tar_files'])}, got: {set(final_log_reg['tar_processed'])}"
 
+    # At the end, the number of proteins and tar files must be consistent
+    err_msg = f"[ERR] The number of processed tar files does not correspond to the number of proteins in the final log."
+    assert len(final_log_reg["tar_processed"]) == len(final_log_reg["all_proteins"]), f"{err_msg} Expected: {len(final_log_reg['tar_processed'])}, got: {len(final_log_reg['all_proteins'])}"
+
     # ---------------- Delete tar csv files ----------------------
     if delete_tar_csv:
         n_deleted = 0
         for protein in final_log_reg["all_proteins"]:
             fname = final_log_reg[protein]["merged_csv_fname"]
-            if os.path.isfile(fname):
+            if fname is not None and os.path.isfile(fname):
                 print(f"Deleting {fname}.")
                 os.remove(fname)
                 n_deleted += 1
@@ -997,7 +1055,7 @@ def process_one_region_folder(
         n_deleted = 0
         for protein in final_log_reg["all_proteins"]:
             fname = final_log_reg[protein]["log_filename"]
-            if os.path.isfile(fname):
+            if fname is not None and os.path.isfile(fname):
                 print(f"Deleting {fname}.")
                 os.remove(fname)
                 n_deleted += 1
@@ -1009,7 +1067,7 @@ def process_one_region_folder(
     if delete_partial_logs == "all":
         n_deleted = 0
         for fname in final_log_reg["partial_log_merged"]:
-            if os.path.isfile(fname):
+            if fname is not None and os.path.isfile(fname):
                 print(f"Deleting {fname}.")
                 os.remove(fname)
                 n_deleted += 1
