@@ -286,8 +286,7 @@ def test_process_one_region_folder():
         log10p_threshold=LOG10P_THRESHOLD,
         create_log=2,
         log_kwargs=LOG_KWARGS,
-        protein_to_process = additional_protein_ids,
-        # protein_to_process = [ACOT13_ID, ZNF174_ID],
+        protein_to_process = [ACOT13_ID, ZNF174_ID],
         verbose=3,
         delete_downloaded_tar = False,
         delete_chr_csv = True,
@@ -298,4 +297,48 @@ def test_process_one_region_folder():
     assert isinstance(all_significant_qtls, pl.DataFrame)
     assert isinstance(log_reg, dict)
 
+    all_significant_qtls, log_reg = process_one_region_folder(
+        synapse_folder_id=REGION_PQTL_DIR,
+        download_location=DOWNLOAD_LOCATION,
+        res_location=RES_LOCATION,
+        login_kwargs=LOGIN_KWARGS,
+        regenie_sep=REGENIE_SEP,
+        regenie_columns = MANDATORY_COLUMNS,
+        csv_columns=NEW_COLUMN_NAMES,
+        log10p_threshold=LOG10P_THRESHOLD,
+        create_log=2,
+        log_kwargs=LOG_KWARGS,
+        protein_to_process = additional_protein_ids,
+        verbose=3,
+        delete_downloaded_tar = False,
+        delete_chr_csv = True,
+        delete_tar_csv = True,
+        delete_tar_log = True,
+        delete_partial_logs = "all",
+    )
 
+    assert isinstance(all_significant_qtls, pl.DataFrame)
+    assert isinstance(log_reg, dict)
+
+    all_significant_qtls, log_reg = process_one_region_folder(
+        synapse_folder_id=REGION_PQTL_DIR,
+        download_location=DOWNLOAD_LOCATION,
+        res_location=RES_LOCATION,
+        login_kwargs=LOGIN_KWARGS,
+        regenie_sep=REGENIE_SEP,
+        regenie_columns = MANDATORY_COLUMNS,
+        csv_columns=NEW_COLUMN_NAMES,
+        log10p_threshold=LOG10P_THRESHOLD,
+        create_log=2,
+        log_kwargs=LOG_KWARGS,
+        protein_to_process = [ACOT13_ID, ZNF174_ID],
+        verbose=3,
+        delete_downloaded_tar = False,
+        delete_chr_csv = True,
+        delete_tar_csv = True,
+        delete_tar_log = True,
+        delete_partial_logs = "all",
+    )
+
+    assert isinstance(all_significant_qtls, pl.DataFrame)
+    assert isinstance(log_reg, dict)
