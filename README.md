@@ -1,6 +1,6 @@
 # UKB PPP Download
 
-`ukbppp_dl` is a small Python package for (robust, memory-efficient and traceable) downloading and filtering UK Biobank PPP pGWAS/pQTL summary statistics from Synapse.
+`ukbppp_dl` is a small Python package for (easy, robust, memory-efficient and traceable) downloading and filtering UK Biobank PPP pGWAS/pQTL summary statistics from Synapse.
 
 The most important function is `ukbppp_dl.pgwas.keep_significant_qtls_from_region`, which can:
 
