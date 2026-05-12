@@ -75,7 +75,7 @@ You need a Synapse account with access to the target folder or file IDs. `ukbppp
 
 An example of the content of the Synapse configuration file `~/.synapseConfig` is shown below. You can find more details about the Synapse configuration file in the [Synapse documentation](https://python-docs.synapse.org/en/stable/tutorials/authentication/).
 
-```toml
+```yaml
 [default]
 username = your.synapse.email@mail.org
 authtoken = YouRAuthenticationKeyWithManyCharacters
