@@ -3,8 +3,6 @@ General design choices
 
 - The code checks if the result file already exists before running the analysis, to avoid re-running it if it has already been run before.
 - If you don't want to reuse result files, you must delete them yourself manually.
-- The log files stores information about the results that won't be accessible outside the scope of a given function.
-- The log file stores information about parameters used only when the parameteres are not directly used when calling the function. In other words, if a user calls a given function, the parameters used in the call won't be saved i n the log file.
 """
 import sys
 import time
@@ -21,39 +19,6 @@ from datetime import datetime
 
 from .common import save_log, delete_files, download_from_synapse
 
-# Synapse directory containing pQTL summary statistics (here for Europe)
-REGION_PQTL_DIR = 'syn51365303'
-
-DOWNLOAD_LOCATION = "./data"
-RES_LOCATION = "./results"
-
-# Specific protein tar files for test purpose
-ACOT13_FILE = "syn52362654"
-ZNF174_FILE = "syn52363271"
-
-# Mandatory columns in the .regenie files
-MANDATORY_COLUMNS = ["CHROM", "GENPOS", "ID", "BETA", "SE", "LOG10P"]
-NEW_COLUMN_NAMES = ["CHR", "QTL_POS", "QTL_ID", "BETA", "SE", "LOG10P"]
-
-# Significance threshold for pQTLs
-LOG10P_THRESHOLD = 7
-
-# Separator used in the .regenie files
-REGENIE_SEP = " "
-
-# Whether to create a log file
-CREATE_LOG = False
-
-# Synapse login kwargs
-LOGIN_KWARGS = {}
-
-LOG_KWARGS = {
-    "overwrite": False,
-    "add_date": True,
-    "new_name": False,
-    "verbose": True,
-}
-
 CONSISTENCY_MESSAGE = """
     Files were skipped because their result file already exists.
     Please make sure that the pre-existing result files are correct and consistent with the new analysis.
@@ -61,10 +26,18 @@ CONSISTENCY_MESSAGE = """
     Decisive parameters include: log10p_threshold, regenie_columns, csv_columns.
 """
 
-
+PGWAS_REGIONS = {
+    "African" : "syn51365304",
+    "American" : "syn51500434",
+    "Central_South_Asian" : "syn51365305",
+    "Combined" : "syn51365308",
+    "East_Asian" : "syn51365306",
+    "European" : "syn51365303",
+    "Middle_East" : "syn51365307",
+}
 
 def list_tar_files_in_region_folder(
-        synapse_id=REGION_PQTL_DIR,
+        synapse_id=PGWAS_REGIONS["Combined"],
         login_kwargs={},
     ):
     """
@@ -102,10 +75,10 @@ def list_tar_files_in_region_folder(
 
 def keep_significant_qtls_from_chr_gz_file(
         chr_file_gz,
-        separator=REGENIE_SEP,
-        columns = MANDATORY_COLUMNS,
-        new_columns=NEW_COLUMN_NAMES,
-        log10p_threshold=LOG10P_THRESHOLD,
+        separator=" ",
+        columns = None,
+        new_columns=None,
+        log10p_threshold=7,
         create_log = False,
         log_kwargs = {},
         verbose=False,
@@ -157,13 +130,13 @@ def keep_significant_qtls_from_chr_gz_file(
 def process_one_chr_from_protein_tar_file(
         protein_tar_file,
         chr_gz_fname,
-        res_location=RES_LOCATION,
-        separator=REGENIE_SEP,
-        columns = MANDATORY_COLUMNS,
-        new_columns=NEW_COLUMN_NAMES,
-        log10p_threshold=LOG10P_THRESHOLD,
-        create_log = CREATE_LOG,
-        log_kwargs = LOG_KWARGS,
+        res_location="./ukb_ppp_dl/results",
+        separator=" ",
+        columns = None,
+        new_columns=None,
+        log10p_threshold=7,
+        create_log = False,
+        log_kwargs = {},
         verbose=False,
     ):
 
@@ -232,10 +205,10 @@ def process_one_chr_from_protein_tar_file(
 def merge_significant_qtls_from_csv(
         csv_fnames,
         output_fname = None,
-        create_log = CREATE_LOG,
-        log_kwargs = LOG_KWARGS,
-        delete_csv = True,
-        verbose=False,
+        create_log = False,
+        log_kwargs = {},
+        delete_csv = False,
+        verbose = False,
     ):
     # Note: LOG10P column must exist in the csv files and with the correct case
 
@@ -309,14 +282,14 @@ def merge_significant_qtls_from_csv(
 
 def process_one_tar_file(
         tar_fname,
-        res_location=RES_LOCATION,
-        separator=REGENIE_SEP,
-        columns = MANDATORY_COLUMNS,
-        new_columns=NEW_COLUMN_NAMES,
-        log10p_threshold=LOG10P_THRESHOLD,
-        create_log = CREATE_LOG,
-        log_kwargs = LOG_KWARGS,
-        verbose=False,
+        res_location="./ukb_ppp_dl/results",
+        separator=" ",
+        columns = None,
+        new_columns=None,
+        log10p_threshold=7,
+        create_log = True,
+        log_kwargs = {},
+        verbose = False,
     ):
     if int(verbose) > 0:
         print(f"Processing protein file: {tar_fname}")
@@ -386,11 +359,11 @@ def process_one_tar_file(
 
 def find_partial_region_logs(
     example_log_dict = None,
-    synapse_folder_id=REGION_PQTL_DIR,
-    res_location=RES_LOCATION,
-    regenie_columns = MANDATORY_COLUMNS,
-    csv_columns = NEW_COLUMN_NAMES,
-    log10p_threshold = LOG10P_THRESHOLD,
+    synapse_folder_id=PGWAS_REGIONS["Combined"],
+    res_location='./ukb_ppp_dl/results',
+    regenie_columns = None,
+    csv_columns = None,
+    log10p_threshold = 7,
     all_tar_files = None,
     verbose = False,
 ):
@@ -685,16 +658,16 @@ def merge_partial_output_files(
 
 
 def process_one_region_folder(
-        synapse_folder_id=REGION_PQTL_DIR,
-        download_location=DOWNLOAD_LOCATION,
-        res_location=RES_LOCATION,
-        login_kwargs=LOGIN_KWARGS,
-        regenie_sep = REGENIE_SEP,
-        regenie_columns = MANDATORY_COLUMNS,
-        csv_columns = NEW_COLUMN_NAMES,
-        log10p_threshold = LOG10P_THRESHOLD,
-        create_log = CREATE_LOG,
-        log_kwargs = LOG_KWARGS,
+        synapse_folder_id=PGWAS_REGIONS["Combined"],
+        download_location="./ukb_ppp_dl/data",
+        res_location="./ukb_ppp_dl/results",
+        login_kwargs={},
+        regenie_sep = " ",
+        regenie_columns = None,
+        csv_columns = None,
+        log10p_threshold = 7,
+        create_log = True,
+        log_kwargs = {},
         protein_to_process = None,
         verbose=False,
         delete_downloaded_tar = True,
@@ -710,8 +683,8 @@ def process_one_region_folder(
     # NOTE: In any case, we are producing an output text file
 
     full_date = datetime.today().strftime('%Y-%m-%d--%H:%M:%S')
-    output_fname = f'{res_location}/output-process_one_region_folder-{full_date}.txt'
-    part_output_fname = f'{res_location}/PART-output-process_one_region_folder-{full_date}.txt'
+    output_fname = f'{res_location}/{synapse_folder_id}-output_text-{full_date}.txt'
+    part_output_fname = f'{res_location}/PART-{synapse_folder_id}-output_text-{full_date}.txt'
     res_fname = f"{res_location}/{synapse_folder_id}-significant_qtls"
     part_resfname = f"{res_location}/PART-{synapse_folder_id}-significant_qtls"
 
@@ -784,7 +757,10 @@ def process_one_region_folder(
     part_log_reg_fname = log_kwargs.pop("log_fname", part_log_reg_fname)
 
     # Save initial part log
-    save_log(part_log_reg_fname, log_reg, add_date=False)
+    save_log(
+        part_log_reg_fname, log_reg,
+        overwrite=False, add_date=False, new_name=True, verbose=False,
+    )
 
     # --------------  Process each protein one by one -----------------
     for synapse_id, tar_name in tar_entities:
@@ -821,7 +797,10 @@ def process_one_region_folder(
             if int(create_log) > 0:
                 if int(verbose) > 0:
                     print(f"Updating partial log file for the region: {part_log_reg_fname}")
-                save_log(part_log_reg_fname, log_reg, overwrite=True, add_date=False)
+                save_log(
+                    part_log_reg_fname, log_reg,
+                    overwrite=True, add_date=False
+                )
 
         else:
 
@@ -910,7 +889,10 @@ def process_one_region_folder(
             if int(create_log) > 0:
                 if int(verbose) > 0:
                     print(f"Updating partial log file for the region: {part_log_reg_fname}")
-                save_log(part_log_reg_fname, log_reg, overwrite=True, add_date=False)
+                save_log(
+                    part_log_reg_fname, log_reg,
+                    overwrite=True, add_date=False, verbose=False
+                )
 
 
             # ----- Delete the downloaded tar file to save space (optional)

@@ -9,7 +9,7 @@ from ..pgwas import (
        list_tar_files_in_region_folder,
        process_one_chr_from_protein_tar_file,
        process_one_tar_file, merge_significant_qtls_from_csv,
-       process_one_region_folder,
+       process_one_region_folder, PGWAS_REGIONS
     )
 
 # Synapse directory containing pQTL summary statistics (here for Europe)
@@ -104,7 +104,7 @@ def test_process_one_chr_from_protein_tar_file():
         res_csv_fname, log = process_one_chr_from_protein_tar_file(
             protein_tf,
             ACOT13_CHR1_FILE,
-            res_location=RES_LOCATION,
+            res_location=f"{RES_LOCATION}/test_process_one_chr_from_protein_tar_file",
             separator=REGENIE_SEP,
             columns = MANDATORY_COLUMNS,
             new_columns=NEW_COLUMN_NAMES,
@@ -140,7 +140,7 @@ def test_process_one_tar_file():
 
     all_csv_fnames, log = process_one_tar_file(
             expected_fname,
-            res_location=RES_LOCATION,
+            res_location=f"{RES_LOCATION}/test_process_one_tar_file",
             separator=REGENIE_SEP,
             columns = MANDATORY_COLUMNS,
             new_columns=NEW_COLUMN_NAMES,
@@ -233,7 +233,7 @@ def test_process_one_region_folder():
 
     # In this test we will reuse a part-file (that we hopfully won't delete each time)
     all_significant_qtls, log_reg = process_one_region_folder(
-        synapse_folder_id=REGION_PQTL_DIR,
+        synapse_folder_id=PGWAS_REGIONS["European"],
         download_location=DOWNLOAD_LOCATION,
         res_location=RES_LOCATION,
         login_kwargs=LOGIN_KWARGS,
@@ -257,7 +257,7 @@ def test_process_one_region_folder():
     assert isinstance(log_reg, dict)
 
     all_significant_qtls, log_reg = process_one_region_folder(
-        synapse_folder_id=REGION_PQTL_DIR,
+        synapse_folder_id=PGWAS_REGIONS["European"],
         download_location=DOWNLOAD_LOCATION,
         res_location=f"{RES_LOCATION}/test_deleted_all",
         login_kwargs=LOGIN_KWARGS,

@@ -1,8 +1,8 @@
-from ukbppp_dl.pgwas import process_one_region_folder
+from ukbppp_dl.pgwas import process_one_region_folder, PGWAS_REGIONS
 
 
 # Synapse directory containing pQTL summary statistics (here for Europe)
-REGION_PQTL_DIR = 'syn51365303'
+REGION = PGWAS_REGIONS["Combined"]
 
 DOWNLOAD_LOCATION = "./data"
 RES_LOCATION = "./results"
@@ -17,13 +17,16 @@ NEW_COLUMN_NAMES = ["CHR", "QTL_POS", "QTL_ID", "BETA", "SE", "LOG10P"]
 LOG10P_THRESHOLD = 7
 
 # Whether to create a log file
+# (0: no log file, >0: create different levels of log files)
 CREATE_LOG = 2
 
+# Whether to have an output text describing the function's run
+# (0: no text, >0: create different levels of verbosity)
 VERBOSE = 3
 
 
 all_significant_qtls, log_reg = process_one_region_folder(
-        synapse_folder_id=REGION_PQTL_DIR,
+        synapse_folder_id=REGION,
         download_location=DOWNLOAD_LOCATION,
         res_location=RES_LOCATION,
         regenie_columns = MANDATORY_COLUMNS,

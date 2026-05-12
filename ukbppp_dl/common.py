@@ -7,9 +7,9 @@ import synapseclient
 def save_log(
         log_fname,
         log_dict,
-        overwrite=True,
+        overwrite=False,
         add_date=True,
-        new_name=True,
+        new_name=False,
         verbose=False
     ):
 
@@ -80,7 +80,7 @@ def delete_files(
 
 def download_from_synapse(
         synapse_id,
-        download_location=".",
+        download_location="./ukb_ppp_dl/data",
         login_kwargs={},
         verbose=False,
     ):
