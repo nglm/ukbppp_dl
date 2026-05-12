@@ -10,7 +10,19 @@ license = "MIT"
 license-files = ["LICENSE.txt"]
 keywords = ["UK Biobank", "UKB-PPP", "pGWAS", "pQTL", "Synapse"]
 
+classifiers = [
+    "Programming Language :: Python :: 3",
 
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 
 
 requires-python = ">=3.14"
@@ -26,3 +38,17 @@ dependencies = [
 dev = [
     "pytest>=9.0.3",
 ]
+
+
+# -------------------------------------------------------
+#  ------------------ UV configuration ------------------
+# -------------------------------------------------------
+
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "ukbppp_dl"
+module-root = ""

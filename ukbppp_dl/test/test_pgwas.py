@@ -1,20 +1,15 @@
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 import tarfile
-import gzip
 import polars as pl
 import os
-import json
-import pathlib
 
 
-from ..pqtls import (
-       list_available_protein_tar_files, download_protein_tar_file,
+from ..common import download_from_synapse
+from ..pgwas import (
+       list_tar_files_in_region_folder,
        process_one_chr_from_protein_tar_file,
-       process_one_tar_file, merge_significant_qtls_from_all_chr_files,
+       process_one_tar_file, merge_significant_qtls_from_csv,
        process_one_region_folder,
-       save_log,
     )
 
 # Synapse directory containing pQTL summary statistics (here for Europe)
@@ -44,7 +39,7 @@ ACOT13_CHR1_FILE = "discovery_chr1_ACOT13:Q9NPJ3:OID31522:v1:Oncology_II.gz"
 
 # Mandatory columns in the .regenie files
 MANDATORY_COLUMNS = ["CHROM", "GENPOS", "ID", "BETA", "SE", "LOG10P"]
-NEW_COLUMN_NAMES = ["chrom", "qtl_pos", "qtl_id", "beta", "se", "log10p"]
+NEW_COLUMN_NAMES = ["CHR", "QTL_POS", "QTL_ID", "BETA", "SE", "LOG10P"]
 
 # Significance threshold for pQTLs
 LOG10P_THRESHOLD = 7
@@ -76,58 +71,10 @@ N_EXPECTED_QTLS_ACOT13 = 16025237
 # Actual number of chromosome files in the tar file
 N_EXPECTED_CHR_FILES = 23
 
-def test_save_log():
-    dict = {"key1": "value", "key2": 123, "key3": [1, 2, 3]}
-    output_name = f"{RES_LOCATION}/test-log.json"
 
-    # Creating new log file
-    log_fname = save_log(
-        output_name,
-        dict,
-        overwrite=True,
-        add_date=False,
-    )
+def test_list_tar_files_in_region_folder():
 
-    assert isinstance(log_fname, str)
-    assert log_fname == output_name
-    assert os.path.isfile(log_fname)
-    with open(log_fname, "r") as f:
-        log_content = json.load(f)
-    assert log_content == dict
-
-    # Trying to create log file but actually skip
-    log_fname = save_log(
-        output_name,
-        dict,
-        overwrite=False,
-        new_name=False,
-        add_date=False,
-    )
-    assert log_fname is None
-    assert os.path.isfile(output_name)
-    with open(output_name, "r") as f:
-        log_content = json.load(f)
-    assert log_content == dict
-
-    # Trying to create log file but use new name
-    log_fname = save_log(
-        output_name,
-        dict,
-        overwrite=False,
-        new_name=True,
-        add_date=False,
-    )
-    assert isinstance(log_fname, str)
-    assert log_fname != output_name
-    assert os.path.isfile(output_name)
-    assert os.path.isfile(log_fname)
-    with open(log_fname, "r") as f:
-        log_content = json.load(f)
-    assert log_content == dict
-
-def test_list_available_protein_tar_files():
-
-        tar_files = list_available_protein_tar_files()
+        tar_files = list_tar_files_in_region_folder()
 
         # Is a list of tuples (id, name)
         assert isinstance(tar_files, list)
@@ -142,26 +89,11 @@ def test_list_available_protein_tar_files():
         assert all(id.startswith('syn') for id in IDs)
 
 
-def test_download_protein_tar_file():
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-        expected_fname, skipped = download_protein_tar_file(
-                ACOT13_ID,
-                download_location=DOWNLOAD_LOCATION,
-                verbose = True,
-        )
-
-        assert isinstance(expected_fname, str)
-        assert expected_fname.endswith(".tar")
-        assert expected_fname == ACOT13_PATH
-
-        assert isinstance(skipped, bool)
-
 def test_process_one_chr_from_protein_tar_file():
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    expected_fname, skipped = download_protein_tar_file(
+    expected_fname, skipped = download_from_synapse(
         ACOT13_ID,
         download_location=DOWNLOAD_LOCATION,
         verbose = True,
@@ -200,7 +132,7 @@ def test_process_one_tar_file():
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    expected_fname, skipped = download_protein_tar_file(
+    expected_fname, skipped = download_from_synapse(
         ACOT13_ID,
         download_location=DOWNLOAD_LOCATION,
         verbose = True,
@@ -225,11 +157,11 @@ def test_process_one_tar_file():
     assert isinstance(log, dict)
     keys = [
         "log_filename", "tar_fname", "protein_name",
-        "tot_chr_files", "skipped_chr_files", "all_csv_fnames",
+        "n_chr_files", "skipped_chr_files", "all_csv_fnames",
         "n_processed_qtls", "log10p_threshold", "regenie_columns",
         "csv_columns"]
     assert all(key in log for key in keys), f"Missing keys in log: {[key for key in keys if key not in log]}"
-    assert log["tot_chr_files"] == N_EXPECTED_CHR_FILES
+    assert log["n_chr_files"] == N_EXPECTED_CHR_FILES
     assert len(log["skipped_chr_files"]) >= 0
     assert len(log["skipped_chr_files"]) <= N_EXPECTED_CHR_FILES
 
@@ -239,7 +171,7 @@ def test_process_one_tar_file():
     elif log["skipped_chr_files"] == 0:
         assert log["n_processed_qtls"] == N_EXPECTED_QTLS_ACOT13
 
-def test_merge_significant_qtls_from_all_chr_files():
+def test_merge_significant_qtls_from_csv():
     # This test relies on the previous one, which processes the tar file and creates the csv files
     # If the previous test fails, this one will also fail
 
@@ -256,18 +188,18 @@ def test_merge_significant_qtls_from_all_chr_files():
 
     out_fname = f"{RES_LOCATION}/ACOT13-test_merging_significant_qtls.csv"
 
-    all_significant_qtls, log = merge_significant_qtls_from_all_chr_files(
+    all_significant_qtls, log = merge_significant_qtls_from_csv(
         all_csv_fnames,
         output_fname=out_fname,
         create_log=2,
-        delete_chr_csv=False,
+        delete_csv=False,
         verbose=True,
     )
 
     assert isinstance(all_significant_qtls, pl.DataFrame)
     assert isinstance(log, dict)
 
-    keys = ["log_filename", "merged_csv_fname", "n_chr_files_merged", "n_kept_qtls", "n_kept_qtls_per_chr_file", "min_log10p"]
+    keys = ["log_filename", "merged_csv_filename", "n_csv_merged", "n_kept_qtls", "n_kept_qtls_per_csv", "min_log10p"]
     assert all(key in log for key in keys), f"Missing keys in log: {[key for key in keys if key not in log]}"
 
 
