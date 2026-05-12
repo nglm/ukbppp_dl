@@ -9,7 +9,7 @@ from ..pgwas import (
        list_tar_files_in_region_folder,
        process_one_chr_from_protein_tar_file,
        process_one_tar_file, merge_significant_qtls_from_csv,
-       process_one_region_folder, PGWAS_REGIONS
+       keep_significant_qtls_from_region, PGWAS_REGIONS
     )
 
 # Synapse directory containing pQTL summary statistics (here for Europe)
@@ -203,11 +203,11 @@ def test_merge_significant_qtls_from_csv():
     assert all(key in log for key in keys), f"Missing keys in log: {[key for key in keys if key not in log]}"
 
 
-def test_process_one_region_folder():
+def test_keep_significant_qtls_from_region():
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    all_significant_qtls, log_reg = process_one_region_folder(
+    all_significant_qtls, log_reg = keep_significant_qtls_from_region(
         synapse_folder_id=REGION_PQTL_DIR,
         download_location=DOWNLOAD_LOCATION,
         res_location=f"{RES_LOCATION}/test_with_chr_json",
@@ -232,7 +232,7 @@ def test_process_one_region_folder():
 
 
     # In this test we will reuse a part-file (that we hopfully won't delete each time)
-    all_significant_qtls, log_reg = process_one_region_folder(
+    all_significant_qtls, log_reg = keep_significant_qtls_from_region(
         synapse_folder_id=PGWAS_REGIONS["European"],
         download_location=DOWNLOAD_LOCATION,
         res_location=RES_LOCATION,
@@ -256,7 +256,7 @@ def test_process_one_region_folder():
     assert isinstance(all_significant_qtls, pl.DataFrame)
     assert isinstance(log_reg, dict)
 
-    all_significant_qtls, log_reg = process_one_region_folder(
+    all_significant_qtls, log_reg = keep_significant_qtls_from_region(
         synapse_folder_id=PGWAS_REGIONS["European"],
         download_location=DOWNLOAD_LOCATION,
         res_location=f"{RES_LOCATION}/test_deleted_all",

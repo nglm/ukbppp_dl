@@ -581,7 +581,7 @@ def find_partial_region_logs(
         *regenie_columns*, *csv_columns*, *log10p_threshold*, and
         *all_tar_files* from this dict instead of the individual keyword
         arguments. Expected keys match those written by
-        :func:`process_one_region_folder`.
+        :func:`keep_significant_qtls_from_region`.
     synapse_folder_id : str, optional
         Synapse folder ID used to filter log filenames, e.g.
         ``"syn51365308"``.
@@ -694,7 +694,7 @@ def merge_partial_region_logs(
 
     To be compatible, log files must have been created with the same
     parameters and created by running the function
-    :func:`process_one_region_folder`. In particular, they must share
+    :func:`keep_significant_qtls_from_region`. In particular, they must share
     identical ``log10p_threshold``, ``regenie_columns``,
     ``csv_columns``, and ``synapse_folder_id`` values.
 
@@ -705,7 +705,7 @@ def merge_partial_region_logs(
     you will use the merged log file in a consistent way.
 
     This function is mainly intended to be used as a helper function for
-    the :func:`process_one_region_folder` function.
+    the :func:`keep_significant_qtls_from_region` function.
 
     Parameters
     ----------
@@ -941,7 +941,7 @@ def merge_partial_output_files(
 
 
 
-def process_one_region_folder(
+def keep_significant_qtls_from_region(
         synapse_folder_id: str = PGWAS_REGIONS["Combined"],
         download_location: str = "./ukb_ppp_dl/data",
         res_location: str = "./ukb_ppp_dl/results",

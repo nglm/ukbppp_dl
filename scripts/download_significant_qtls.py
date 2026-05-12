@@ -1,7 +1,7 @@
-from ukbppp_dl.pgwas import process_one_region_folder, PGWAS_REGIONS
+from ukbppp_dl.pgwas import keep_significant_qtls_from_region, PGWAS_REGIONS
 
 
-# Synapse directory containing pQTL summary statistics (here for Europe)
+# Synapse directory containing pQTL summary statistics (here for Combined)
 REGION = PGWAS_REGIONS["Combined"]
 
 DOWNLOAD_LOCATION = "./data"
@@ -25,7 +25,7 @@ CREATE_LOG = 2
 VERBOSE = 3
 
 
-all_significant_qtls, log_reg = process_one_region_folder(
+all_significant_qtls, log_reg = keep_significant_qtls_from_region(
         synapse_folder_id=REGION,
         download_location=DOWNLOAD_LOCATION,
         res_location=RES_LOCATION,
