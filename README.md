@@ -55,7 +55,7 @@ poetry add git+https://github.com/nglm/ukbppp-dl.git
 # From PyPI
 pip install ukbppp-dl
 # Alternatively, from github directly
-pip install git+https://github.com/nglm/ukbppp-dl.git
+pip install git+https://github.com/nglm/ukbppp_dl.git
 ```
 
 ## Requirements
