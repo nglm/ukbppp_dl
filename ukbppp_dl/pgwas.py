@@ -1,3 +1,5 @@
+"""Functions for processing pGWAS summary statistics files from UKB PPP."""
+
 import sys
 import time
 import synapseclient

@@ -1,3 +1,5 @@
+"""Common utility functions for the ukbppp_dl package."""
+
 import os
 from pathlib import Path
 from datetime import datetime
