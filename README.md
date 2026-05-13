@@ -110,9 +110,9 @@ all_significant_qtls, log_reg = keep_significant_qtls_from_region(
 )
 ```
 
-The resulting `all_significant_qtls` is a Polars DataFrame containing all significant QTLs across the selected region. `log_reg` is the final region log dictionary, which records the parameters, processed protein tar files, kept proteins, and output file paths, etc. used when producing `all_significant_qtls`.
+The resulting `all_significant_qtls` is a [Polars DataFrame](https://docs.pola.rs/py-polars/html/reference/dataframe/index.html) containing all significant QTLs across the selected region. `log_reg` is the final region log dictionary, which records the parameters, processed protein tar files, kept proteins, and output file paths, etc. used when producing `all_significant_qtls`.
 
-See an example of resulting dataframe below (with a subset of columns, and fictive BETA, SE and LOG10P values):
+See an example of resulting `all_significant_qtls` dataframe below (with a subset of columns, and fictive BETA, SE and LOG10P values):
 
 | Protein_name | CHROM | POS       | ID                     | BETA  | SE   | LOG10P |
 | ------------ | ----- | --------- | ---------------------- | ----- | ---- | ------ |
