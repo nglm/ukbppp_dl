@@ -177,7 +177,7 @@ def test_merge_significant_qtls_from_csv():
 
     all_csv_fnames, log_tar = process_one_tar_file(
             ACOT13_PATH,
-            res_location=RES_LOCATION,
+            res_location=f"{RES_LOCATION}/test_merge",
             separator=REGENIE_SEP,
             columns = MANDATORY_COLUMNS,
             new_columns=NEW_COLUMN_NAMES,
@@ -186,7 +186,7 @@ def test_merge_significant_qtls_from_csv():
             verbose=True,
     )
 
-    out_fname = f"{RES_LOCATION}/ACOT13-test_merging_significant_qtls.csv"
+    out_fname = f"{RES_LOCATION}/test_merge/ACOT13-test_merging_significant_qtls.csv"
 
     all_significant_qtls, log = merge_significant_qtls_from_csv(
         all_csv_fnames,
@@ -236,7 +236,7 @@ def test_keep_significant_qtls_from_region():
     all_significant_qtls, log_reg = keep_significant_qtls_from_region(
         synapse_folder_id=PGWAS_REGIONS["European"],
         download_location=DOWNLOAD_LOCATION,
-        res_location=RES_LOCATION,
+        res_location=f"{RES_LOCATION}/test_with_restart",
         login_kwargs=LOGIN_KWARGS,
         regenie_sep=REGENIE_SEP,
         regenie_columns = MANDATORY_COLUMNS,
