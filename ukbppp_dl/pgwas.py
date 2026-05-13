@@ -951,7 +951,7 @@ def keep_significant_qtls_from_region(
         csv_columns: list[str] | None = None,
         log10p_threshold: float | int = 7,
         create_log: bool | int = True,
-        log_kwargs: dict[str, Any] = {},
+        log_kwargs: dict[str, Any] = {},  # Not fully implemented yet,
         protein_to_process: list[str] | None = None,
         verbose: bool | int = False,
         delete_downloaded_tar: bool = True,
@@ -1003,9 +1003,9 @@ def keep_significant_qtls_from_region(
 
     This function will create many files during the process, but most of
     them are intermediate files that can be deleted at the end of the
-    run if specified. The main final output is the region-level CSV
-    file containing all significant QTLs across all processed proteins,
-    and the region-level output file documenting the process and results.
+    run if specified. The main final output is the region-level CSV file
+    containing all significant QTLs across all processed proteins, and
+    the region-level output file documenting the process and results.
 
     Parameters
     ----------
@@ -1054,6 +1054,8 @@ def keep_significant_qtls_from_region(
     log_kwargs : dict[str, Any], optional
         Keyword arguments forwarded to :func:`save_log`. Recognised key:
         ``"log_fname"`` (``str``) to override the default log filename.
+        This parameter is not fully implemented yet and it is mostly the
+        default filenames that are used.
     protein_to_process : list[str] or None, optional
         Whitelist of proteins to process. Accepts Synapse IDs (e.g.
         ``"syn52361344"``) or tar filenames (e.g.
@@ -1094,18 +1096,15 @@ def keep_significant_qtls_from_region(
     """
 
     # NOTE: In any case, we are producing an output text file
-
     full_date = datetime.today().strftime('%Y-%m-%d--%H:%M:%S')
-    output_fname = f'{res_location}/{synapse_folder_id}-output_text-{full_date}.txt'
-    part_output_fname = f'{res_location}/PART-{synapse_folder_id}-output_text-{full_date}.txt'
-    res_fname = f"{res_location}/{synapse_folder_id}-significant_qtls"
-    part_resfname = f"{res_location}/PART-{synapse_folder_id}-significant_qtls"
+    fname_base = f'{res_location}/{synapse_folder_id}-significant_qtls-{full_date}'
+    fname_base_PART = f'{res_location}/PART-{synapse_folder_id}-significant_qtls-{full_date}'
 
     # Make sure path exists otherwise create it
-    p = pathlib.Path(output_fname)
+    p = pathlib.Path(f"{fname_base}-text.txt")
     p.parent.mkdir(parents=True, exist_ok=True)
 
-    fout = open(part_output_fname, 'wt')
+    fout = open(f"{fname_base_PART}-text.txt", 'wt')
     sys.stdout = fout
 
     t_start_region = time.time()
@@ -1144,7 +1143,7 @@ def keep_significant_qtls_from_region(
         "csv_columns": csv_columns,
         "all_tar_files": [tar_name for _, tar_name in tar_entities],
         "log_filename": None,
-        "output_filename": part_output_fname,
+        "output_filename": f"{fname_base_PART}-text.txt",
         "tar_skipped" : [],
         "tar_processed": [],
         "tar_downloaded_skip": [],
@@ -1166,12 +1165,9 @@ def keep_significant_qtls_from_region(
 
     # ---- Save current partial region log files ------------------
 
-    part_log_reg_fname = f"{part_resfname}-log-{full_date}.json"
-    part_log_reg_fname = log_kwargs.pop("log_fname", part_log_reg_fname)
-
     # Save initial part log
     save_log(
-        part_log_reg_fname, log_reg,
+        f"{fname_base_PART}-log.json", log_reg,
         overwrite=False, add_date=False, new_name=True, verbose=False,
     )
 
@@ -1209,9 +1205,9 @@ def keep_significant_qtls_from_region(
 
             if int(create_log) > 0:
                 if int(verbose) > 0:
-                    print(f"Updating partial log file for the region: {part_log_reg_fname}")
+                    print(f"Updating partial log file for the region: {f"{fname_base_PART}-log.json"}")
                 save_log(
-                    part_log_reg_fname, log_reg,
+                    f"{fname_base_PART}-log.json", log_reg,
                     overwrite=True, add_date=False
                 )
 
@@ -1301,9 +1297,9 @@ def keep_significant_qtls_from_region(
 
             if int(create_log) > 0:
                 if int(verbose) > 0:
-                    print(f"Updating partial log file for the region: {part_log_reg_fname}")
+                    print(f"Updating partial log file for the region: {f"{fname_base_PART}-log.json"}")
                 save_log(
-                    part_log_reg_fname, log_reg,
+                    f"{fname_base_PART}-log.json", log_reg,
                     overwrite=True, add_date=False, verbose=False
                 )
 
@@ -1364,33 +1360,34 @@ def keep_significant_qtls_from_region(
     all_significant_qtls = pl.concat(non_empty_dfs)
 
     # Save the concatenated dataframe to a new file
-    all_significant_qtls.write_csv( f"{res_fname}.csv")
+    all_significant_qtls.write_csv( f"{fname_base}.csv")
 
     if verbose:
         print(f"Found {len(final_log_reg['kept_proteins'])}/{len(final_log_reg['all_proteins'])} proteins with at least one significant QTL.")
-        print(f"All significant QTLs saved to:  {f"{res_fname}.csv"}")
+        print(f"All significant QTLs saved to:  {f"{fname_base}.csv"}")
         print(f"Total significant QTLs:         {len(all_significant_qtls)}")
         print(f"{"="*80}", flush=True)
-
 
     # ------------------- Merge output files ---------------------------
     fout.close()
 
     # Merge all partial output files into "output_fname" file
     merge_partial_output_files(
-        output_fname, final_log_reg["partial_output_filenames"]
+        f"{fname_base}-text.txt", final_log_reg["partial_output_filenames"]
     )
 
     # Use this final output file as the output filename (in append mode!)
-    fout = open(output_fname, 'at')
+    fout = open(f"{fname_base}-text.txt", 'at')
     sys.stdout = fout
-    final_log_reg["output_filename"] = output_fname
+    final_log_reg["output_filename"] = f"{fname_base}-text.txt"
 
     # ---------------Create log file for the region ------------------
     if int(create_log) > 0:
         # If log_fname not in log_kwargs, use a default one
-        save_log(f"{res_fname}-log.json", final_log_reg, **log_kwargs)
-
+        save_log(
+            f"{fname_base}-log.json", final_log_reg,
+            overwrite=False, add_date=False, new_name=True, verbose=False,
+        )
 
     # ---------------------Sanity Checks ------------------
 
@@ -1439,10 +1436,10 @@ def keep_significant_qtls_from_region(
 
     # Deleting only the current partial log created by this run
     elif delete_partial_logs == "current" or delete_partial_logs == True:
-        if os.path.isfile(part_log_reg_fname):
-            os.remove(part_log_reg_fname)
+        if os.path.isfile(f"{fname_base_PART}-log.json"):
+            os.remove(f"{fname_base_PART}-log.json")
             if int(verbose) > 0:
-                print(f"Deleted current partial log file {part_log_reg_fname}.")
+                print(f"Deleted current partial log file {f'{fname_base_PART}-log.json'}.")
 
     # ---------------- Delete partial output files ----------------------
     # Deleting all partial outputs used to create this final output
@@ -1454,10 +1451,10 @@ def keep_significant_qtls_from_region(
 
     # Deleting only the current partial output created by this run
     elif delete_partial_outputs == "current" or delete_partial_outputs == True:
-        if os.path.isfile(part_output_fname):
-            os.remove(part_output_fname)
+        if os.path.isfile(f"{fname_base_PART}-text.txt"):
+            os.remove(f"{fname_base_PART}-text.txt")
             if int(verbose) > 0:
-                print(f"Deleted current partial output file {part_output_fname}.")
+                print(f"Deleted current partial output file {f'{fname_base_PART}-text.txt'}.")
 
     # ------------------- Verbose -----------------------------------
     t_end_region = time.time()
