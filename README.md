@@ -15,6 +15,8 @@ The most important function is `keep_significant_qtls_from_region`, which can:
 - Automatically detect and reuse compatible partial results from interrupted runs (because you needed to restart your local machine or your remote server shut down, etc.).
 - Clean up intermediate files when requested.
 
+See section [Basic usage](https://ukbppp-dl.readthedocs.io/en/latest/index.html#basic-usage) for more practical details.
+
 ## Why this package matters
 
 Main strengths of the package:
