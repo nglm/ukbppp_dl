@@ -27,7 +27,7 @@ Main strengths of the package:
 
 ## Documentation
 
-The full documentation is available at XXX.
+The full documentation is available at [UKB PPP Download - Documentation](https://ukbppp-dl.readthedocs.io/).
 
 ## Installation
 
@@ -131,8 +131,8 @@ See an example of resulting `all_significant_qtls` dataframe below (with a subse
 
 ## Contribute
 
-- Issue Tracker: [github.com/nglm/ukbppp-dl/issues](https://github.com/nglm/ukbppp-dl/issues).
-- Source Code: [github.com/nglm/ukbppp-dl](github.com/nglm/ukbppp-dl).
+- Issue Tracker: [github.com/nglm/ukbppp_dl/issues](https://github.com/nglm/ukbppp_dl/issues).
+- Source Code: [github.com/nglm/ukbppp_dl](github.com/nglm/ukbppp_dl).
 
 ## Support
 
