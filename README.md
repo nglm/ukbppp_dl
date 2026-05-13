@@ -136,7 +136,7 @@ See an example of resulting `all_significant_qtls` dataframe below (with a subse
 
 ## Support
 
-If you are having issues, [please let me know](https://www.uib.no/en/persons/Natacha.Madeleine.Georgette.Galmiche) or [create an issue](https://github.com/nglm/ukbppp-dl/issues).
+If you are having issues, [please let me know](https://www.uib.no/en/persons/Natacha.Madeleine.Georgette.Galmiche) or [create an issue](https://github.com/nglm/ukbppp_dl/issues).
 
 ## License
 
