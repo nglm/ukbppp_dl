@@ -1,5 +1,9 @@
 # UKB PPP Download
 
+[![PyPI version](https://badge.fury.io/py/ukbppp-dl.svg)](https://badge.fury.io/py/ukbppp-dl)
+[![Documentation Status](https://readthedocs.org/projects/ukbppp-dl/badge/?version=latest)](https://ukbppp-dl.readthedocs.io/en/latest/?badge=latest)
+
+
 `ukbppp_dl` is a small Python package for easy, robust, memory-efficient and traceable downloading of [UK Biobank Pharma Proteomics Project (UKB-PPP)](https://www.synapse.org/Synapse:syn51364943/wiki/622119) files from Synapse, including pGWAS/pQTL summary statistics with potential filtering based on your given significance threshold.
 
 The most important function is `keep_significant_qtls_from_region`, which can:
