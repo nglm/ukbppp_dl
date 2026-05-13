@@ -25,7 +25,7 @@ See section [Basic usage](https://ukbppp-dl.readthedocs.io/en/latest/index.html#
 
 Main strengths of the package:
 
-1. **Memory friendly**: Instead of downloading the whole region file (probably around 9PT), `ukbppp_dl` processes protein individually, and can delete intermediate files on the fly, making it memory-friendly. In addition it doesn't require to extract the whole archives to the disk and read the chromosome files directly from the tar archives instead. You won't need much more than 1GB of free space to run the function.
+1. **Memory friendly**: Instead of downloading the whole region file (probably around 9TB), `ukbppp_dl` processes protein individually, and can delete intermediate files on the fly, making it memory-friendly. In addition it doesn't require to extract the whole archives to the disk and read the chromosome files directly from the tar archives instead. You won't need much more than 1GB of free space to run the function.
 2. **Restart-friendly**: compatible partial results, logs and outputs can be reused instead of recomputed. Interrupt your run without worrying about losing all the progress, nor creating inconsistent results.
 3. **Traceability and reproducibility**: It keeps the results traceable through JSON logs and text output files. Thus, once the final CSV files are generated, you can still check with which parameters they were generated.
 4. **Flexible cleanup control**: It gives you control over cleanup, generated files and verbosity, so that the final outputs are easy to understand and manage, avoiding much manual intervention (and thus potential errors and inconsistencies).
