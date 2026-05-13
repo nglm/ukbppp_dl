@@ -228,6 +228,7 @@ def test_keep_significant_qtls_from_region():
     )
 
     assert isinstance(all_significant_qtls, pl.DataFrame)
+    assert len(all_significant_qtls) == 794
     assert isinstance(log_reg, dict)
 
 
@@ -255,6 +256,7 @@ def test_keep_significant_qtls_from_region():
 
     assert isinstance(all_significant_qtls, pl.DataFrame)
     assert isinstance(log_reg, dict)
+    assert len(all_significant_qtls) == 6737
 
     all_significant_qtls, log_reg = keep_significant_qtls_from_region(
         synapse_folder_id=PGWAS_REGIONS["European"],
