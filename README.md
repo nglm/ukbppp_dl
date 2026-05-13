@@ -1,17 +1,17 @@
 # UKB PPP Download
 
-`ukbppp_dl` is a small Python package for easy, robust, memory-efficient and traceable downloading and filtering of [UK Biobank Pharma Proteomics Project (UKB-PPP)](https://www.synapse.org/Synapse:syn51364943/wiki/622119) files from Synapse, including pGWAS/pQTL summary statistics.
+`ukbppp_dl` is a small Python package for easy, robust, memory-efficient and traceable downloading of [UK Biobank Pharma Proteomics Project (UKB-PPP)](https://www.synapse.org/Synapse:syn51364943/wiki/622119) files from Synapse, including pGWAS/pQTL summary statistics with potential filtering based on your given significance threshold.
 
-The most important function is `ukbppp_dl.pgwas.keep_significant_qtls_from_region`, which can:
+The most important function is `keep_significant_qtls_from_region`, which can:
 
-- Finds all protein tar archives in a given ancestry group in the UKB PPP pGWAS Synapse folder.
+- Find all protein tar archives in a given ancestry group in the UKB PPP pGWAS Synapse folder.
 - Download only the protein tar files that are needed, and can delete them on the fly to save space.
 - Extract chromosome-level REGENIE results from each tar archive.
 - Filter rows by a `LOG10P` significance threshold.
 - Can write per-chromosome, per-protein, and region-level outputs. Outputs include:
   - CSV files with the significant QTLs only.
   - JSON logs with the run parameters, kept proteins, and output file paths to ensure traceability.
-  - a text output file that captures the run transcript.
+  - A text output file that captures the run transcript.
 - Automatically detect and reuse compatible partial results from interrupted runs (because you needed to restart your local machine or your remote server shut down, etc.).
 - Clean up intermediate files when requested.
 
@@ -94,6 +94,12 @@ CREATE_LOG = 2
 # (0: no text, >0: create different levels of verbosity)
 VERBOSE = 3
 
+# set to a list of protein tar file names or synapse IDs if you want to process only specific proteins
+# PROTEIN_TO_PROCESS = ["ACOT13_Q9NPJ3_OID31522_v1_Oncology_II.tar", "syn52363271"]
+
+# otherwise set to None to process all proteins in the region
+PROTEIN_TO_PROCESS = None
+
 all_significant_qtls, log_reg = keep_significant_qtls_from_region(
 	synapse_folder_id=REGION,
 	download_location="./data",
@@ -103,6 +109,7 @@ all_significant_qtls, log_reg = keep_significant_qtls_from_region(
 	verbose=VERBOSE,
 	delete_downloaded_tar=True,
 	delete_chr_csv=True,
+    protein_to_process=PROTEIN_TO_PROCESS,
 	delete_tar_csv=False,
 	delete_tar_log=False,
 	delete_partial_logs=False,
