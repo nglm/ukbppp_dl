@@ -1,6 +1,6 @@
 [project]
 name = "ukbppp-dl"
-version = "0.1.0"
+version = "0.1.1"
 description = "Package for easy, robust and efficient download of significant pQTL data from UKB PPP"
 readme = "README.md"
 authors = [

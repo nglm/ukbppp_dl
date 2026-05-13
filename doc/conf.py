@@ -11,7 +11,7 @@ copyright = '2026, Natacha Galmiche'
 author = 'Natacha Galmiche'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.0'
+release = '0.1.1'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
