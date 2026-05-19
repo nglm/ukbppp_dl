@@ -2,7 +2,7 @@ from ukbppp_dl.pgwas import keep_significant_qtls_from_region, PGWAS_REGIONS
 
 
 # Synapse directory containing pQTL summary statistics (here for Combined)
-REGION = PGWAS_REGIONS["Combined"]
+REGION = PGWAS_REGIONS["European"]
 
 DOWNLOAD_LOCATION = "./data"
 RES_LOCATION = "./results"
