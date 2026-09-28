@@ -1,6 +1,8 @@
 
-.. mdinclude:: ../README.md
-   :lines: 7-144
+.. include:: ../README.md
+   :parser: myst_parser.sphinx_
+   :start-line: 6
+   :end-line: 144
 
 
 Main Functionalities
@@ -40,5 +42,7 @@ Full API
    ukbppp_dl.pgwas
 
 
-.. mdinclude:: ../README.md
-   :lines: 144-157
+.. include:: ../README.md
+   :parser: myst_parser.sphinx_
+   :start-line: 143
+   :end-line: 157
