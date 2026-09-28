@@ -510,7 +510,9 @@ def process_one_tar_file(
         list_of_chr_files = [f for f in list_of_chr_files if f.endswith('.gz')]
         list_of_chr_files.sort()
 
-        protein_name = f"{Path(tar_fname).stem.split('_')[0]}"
+        assay = f"{Path(tar_fname).stem.split('_')[0]}"
+        OID = f"{Path(tar_fname).stem.split('_')[2]}"
+        protein_name = f"{assay}_{OID}"
 
         log_tar = {
             "log_filename": None,
@@ -1177,7 +1179,9 @@ def keep_significant_qtls_from_region(
     for synapse_id, tar_name in tar_entities:
 
         # Preparing result filename keeping only significant QTLs
-        protein_name = f"{Path(tar_name).stem.split('_')[0]}"
+        assay = f"{Path(tar_name).stem.split('_')[0]}"
+        OID = f"{Path(tar_name).stem.split('_')[2]}"
+        protein_name = f"{assay}_{OID}"
         res_merged_fname = f"{res_location}/{protein_name}-significant_qtls"
 
         if int(verbose) > 0:

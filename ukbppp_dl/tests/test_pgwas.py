@@ -88,6 +88,35 @@ def test_list_tar_files_in_region_folder():
         assert all(isinstance(id, str) for id in IDs)
         assert all(id.startswith('syn') for id in IDs)
 
+def test_uniqueness_name_ASSAY_OID():
+    counting = {}
+
+    for r_name, r_id in PGWAS_REGIONS.items():
+
+        counting[r_name] = {
+            "protein" : 0,
+            "OID" : 0
+        }
+        list_tar_files = list_tar_files_in_region_folder(
+            r_id
+        )
+        proteins = [
+            f.split("_")[0] for (id, f) in list_tar_files
+        ]
+        OID = [
+            f.split("_")[2] for (id, f) in list_tar_files
+        ]
+        proteins_OID = [
+            "_".join([f.split("_")[0], f.split("_")[2]])
+            for (id, f) in list_tar_files
+        ]
+
+        n_proteins = len(set(proteins))
+        n_OIDs = len(set(OID))
+        n_proteins_OID = len(set(proteins_OID))
+        n_files = len(list_tar_files)
+
+        assert n_files == n_proteins_OID
 
 def test_process_one_chr_from_protein_tar_file():
 
