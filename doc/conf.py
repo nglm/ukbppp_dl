@@ -30,9 +30,9 @@ extensions = [
     # To tell sphinx that we are also using markdown
     'myst_parser',
     # Allow reference sections using its title
-    'sphinx.ext.autosectionlabel',
-    # better math support
-    'sphinx.ext.mathjax',
+    # 'sphinx.ext.autosectionlabel',
+    # # better math support
+    # 'sphinx.ext.mathjax',
     # Add a copy button to your code blocks
     'sphinx_copybutton',
     # Add canvas with inner tabs (typically to write the same thing with)
@@ -94,7 +94,7 @@ autosummary_generate = True  # Turn on sphinx.ext.autosummary
 # :ref:`my_document:My section`
 # Otherwise:
 # :ref:`My section`
-autosectionlabel_prefix_document = True
+# autosectionlabel_prefix_document = True
 
 
 # -- Myst-Parser options ------------------
