@@ -1,5 +1,6 @@
 
 .. mdinclude:: ../README.md
+   :lines: 7-144
 
 
 Main Functionalities
@@ -39,7 +40,5 @@ Full API
    ukbppp_dl.pgwas
 
 
-Index
--------------------
-
-* :ref:`genindex`
+.. mdinclude:: ../README.md
+   :lines: 144-157

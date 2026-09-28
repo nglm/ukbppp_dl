@@ -21,7 +21,7 @@ The most important function is `keep_significant_qtls_from_region`, which can:
 
 See section [Basic usage](https://ukbppp-dl.readthedocs.io/en/latest/index.html#basic-usage) for more practical details.
 
-## Why this package matters
+## Why this package?
 
 Main strengths of the package:
 
@@ -127,19 +127,19 @@ The resulting `all_significant_qtls` is a [Polars DataFrame](https://docs.pola.r
 
 See an example of resulting `all_significant_qtls` dataframe below (with a subset of columns, and fictive BETA, SE and LOG10P values):
 
-| Protein_name | CHROM | POS       | ID                     | BETA  | SE   | LOG10P |
-| ------------ | ----- | --------- | ---------------------- | ----- | ---- | ------ |
-| ABCA2        | 11    | 1737296   | 11:1758526:C:T:imp:v1  | -0.5  | 0.1  | 8.0    |
-| ABCA2        | 11    | 1764171   | 11:1785401:T:C:imp:v1  | -0.4  | 0.2  | 7.5    |
-| ABCA2        | 9     | 137017531 | 9:139911983:T:G:imp:v1 | -0.09 | 0.01 | 13.6   |
-| ABCA2        | 9     | 137017726 | 9:139912178:G:A:imp:v1 | 0.05  | 0.03 | 8.1    |
-| ABHD14B      | 10    | 63118358  | 10:64878118:C:G:imp:v1 | 0.05  | 0.01 | 8.5    |
-| ABHD14B      | 10    | 63122540  | 10:64882300:C:G:imp:v1 | 0.04  | 0.02 | 8.4    |
-| ABHD14B      | 12    | 54342686  | 12:54736470:A:G:imp:v1 | 0.04  | 0.03 | 8.1    |
-| ABHD14B      | 18    | 57633880  | 18:55301112:A:G:imp:v1 | -0.06 | 0.01 | 7.3    |
-| ABHD14B      | 19    | 55014977  | 19:55526345:T:G:imp:v1 | 0.06  | 0.01 | 7.2    |
-| ABHD14B      | 19    | 55025227  | 19:55536595:G:A:imp:v1 | 0.07  | 0.01 | 8.0    |
-| ...          | ...   | ...       | ...                    | ...   | ...  | ...    |
+| Protein_name     | CHROM | POS       | ID                     | BETA  | SE   | LOG10P |
+| ---------------- | ----- | --------- | ---------------------- | ----- | ---- | ------ |
+| ABCA2_OID30146   | 11    | 1737296   | 11:1758526:C:T:imp:v1  | -0.5  | 0.1  | 8.0    |
+| ABCA2_OID30146   | 11    | 1764171   | 11:1785401:T:C:imp:v1  | -0.4  | 0.2  | 7.5    |
+| ABCA2_OID30146   | 9     | 137017531 | 9:139911983:T:G:imp:v1 | -0.09 | 0.01 | 13.6   |
+| ABCA2_OID30146   | 9     | 137017726 | 9:139912178:G:A:imp:v1 | 0.05  | 0.03 | 8.1    |
+| ABHD14B_OID20921 | 10    | 63118358  | 10:64878118:C:G:imp:v1 | 0.05  | 0.01 | 8.5    |
+| ABHD14B_OID20921 | 10    | 63122540  | 10:64882300:C:G:imp:v1 | 0.04  | 0.02 | 8.4    |
+| ABHD14B_OID20921 | 12    | 54342686  | 12:54736470:A:G:imp:v1 | 0.04  | 0.03 | 8.1    |
+| ABHD14B_OID20921 | 18    | 57633880  | 18:55301112:A:G:imp:v1 | -0.06 | 0.01 | 7.3    |
+| ABHD14B_OID20921 | 19    | 55014977  | 19:55526345:T:G:imp:v1 | 0.06  | 0.01 | 7.2    |
+| ABHD14B_OID20921 | 19    | 55025227  | 19:55536595:G:A:imp:v1 | 0.07  | 0.01 | 8.0    |
+| ...              | ...   | ...       | ...                    | ...   | ...  | ...    |
 
 
 ## Contribute

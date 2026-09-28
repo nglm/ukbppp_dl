@@ -31,7 +31,8 @@ extensions = [
     # 'myst_parser',
     # To be able to include md files directly in rst files
     # adds the mdinclude directive
-    'm2r',
+    # 'm2r',
+    'sphinx_mdinclude',
 ]
 
 # Uncomment if m2r is NOT included in the extension
