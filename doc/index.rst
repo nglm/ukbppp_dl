@@ -1,7 +1,6 @@
 
 .. include:: ../README.md
    :parser: myst_parser.sphinx_
-   :start-line: 6
    :end-line: 144
 
 
